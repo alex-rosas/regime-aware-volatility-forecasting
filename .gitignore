@@ -211,4 +211,4 @@ __marimo__/
 data/processed/
 
 notebooks/scratch.ipynb
-.vscode/
+.vscode/scratch/
