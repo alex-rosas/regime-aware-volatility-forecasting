@@ -78,6 +78,7 @@ def fetch_ipc(start: str = "2000-01-01", end: str = TODAY) -> pd.DataFrame:
     # Filter by start/end dates for consistency with other functions
     df = df[df.index >= start]
     df = df[df.index <= end]
+    df = df.ffill()  # forward-fill missing values (e.g. weekends) for validation purposes
 
     # Save to data/raw/ipc.csv
     df.to_csv(RAW_DIR / "ipc.csv")
