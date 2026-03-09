@@ -1,0 +1,5 @@
+outs:
+- md5: 8009ac687688e926c2cc4a07fd13ca99
+  size: 160559
+  hash: md5
+  path: ipc.csv

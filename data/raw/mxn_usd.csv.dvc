@@ -1,0 +1,5 @@
+outs:
+- md5: e9c45414feb838e511743acda4ef2c52
+  size: 123608
+  hash: md5
+  path: mxn_usd.csv

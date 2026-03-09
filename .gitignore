@@ -208,5 +208,7 @@ __marimo__/
 
 
 .env
-data/raw/
 data/processed/
+
+notebooks/scratch.ipynb
+.vscode/
