@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/Aex/volatility_regimes/notebooks/mlruns/339735599506840017/5956772ed5774b22b947b611354f33b1/artifacts
+end_time: 1773182571273
+entry_point_name: ''
+experiment_id: '339735599506840017'
+lifecycle_stage: active
+run_id: 5956772ed5774b22b947b611354f33b1
+run_name: baseline
+run_uuid: 5956772ed5774b22b947b611354f33b1
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773182571266
+status: 3
+tags: []
+user_id: Aex
