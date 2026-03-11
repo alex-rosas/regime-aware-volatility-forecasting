@@ -267,3 +267,96 @@ def run_all_tests(
         'ljung_box'  : run_ljung_box(returns, lags=nlags),
         'adf'        : run_adf(returns),
     }
+
+# ---------------------------------------------------------------------------
+# summary table
+# ---------------------------------------------------------------------------
+
+def tests_to_frame(test_results: dict) -> pd.DataFrame:
+    """
+    Format the output of run_all_tests() into a readable summary DataFrame.
+
+    Each row corresponds to one test (or one sub-test where applicable).
+    Columns communicate the full chain of reasoning: what was tested, what
+    was found, whether to reject, which Black-Scholes assumption is at stake,
+    and what modeling decision follows.
+
+    Parameters
+    ----------
+    test_results : dict
+        Output of run_all_tests(). Expected keys:
+        'arch_lm', 'jarque_bera', 'ljung_box', 'adf'.
+
+    Returns
+    -------
+    pd.DataFrame with columns:
+        H0, Statistic, p-value,
+        Reject H0 (5%), BS Assumption Violated, Modeling Response
+    Index: Test name (ARCH-LM, Jarque-Bera, Ljung-Box on r_t,
+                      Ljung-Box on r²_t, ADF)
+    """
+    al  = test_results['arch_lm']
+    jb  = test_results['jarque_bera']
+    lb  = test_results['ljung_box']
+    adf = test_results['adf']
+
+    def _reject(pvalue: float) -> str:
+        return 'Yes' if pvalue < 0.05 else 'No'
+
+    rows = [
+        {
+            'Test'                   : 'ARCH-LM',
+            'H0'                     : 'No ARCH effects (constant variance)',
+            'Statistic'              : f'LM = {al["lm_stat"]:,.2f}',
+            'p-value'                : f'{al["lm_pvalue"]:.2e}',
+            'Reject H0 (5%)'         : _reject(al['lm_pvalue']),
+            'BS Assumption Violated' : 'Constant volatility',
+            'Modeling Response'      : 'GARCH family to model time-varying variance',
+        },
+        {
+            'Test'                   : 'Jarque-Bera',
+            'H0'                     : 'Returns are normally distributed',
+            'Statistic'              : f'JB = {jb["jb_stat"]:,.2f}',
+            'p-value'                : f'{jb["jb_pvalue"]:.2e}',
+            'Reject H0 (5%)'         : _reject(jb['jb_pvalue']),
+            'BS Assumption Violated' : 'Normal log-returns',
+            'Modeling Response'      : (
+                f'Student-t innovations '
+                f'(excess kurtosis = {jb["excess_kurtosis"]:.2f})'
+            ),
+        },
+        {
+            'Test'                   : 'Ljung-Box on r_t',
+            'H0'                     : 'No autocorrelation in returns',
+            'Statistic'              : f'Q(10) = {lb["lb_stat_r"]:.2f}',
+            'p-value'                : f'{lb["lb_pvalue_r"]:.2e}',
+            'Reject H0 (5%)'         : _reject(lb['lb_pvalue_r']),
+            'BS Assumption Violated' : 'No autocorrelation in returns',
+            'Modeling Response'      : 'Include mean equation in GARCH (mu)',
+        },
+        {
+            'Test'                   : 'Ljung-Box on r\u00b2_t',
+            'H0'                     : 'No autocorrelation in squared returns',
+            'Statistic'              : f'Q(10) = {lb["lb_stat_r2"]:.2f}',
+            'p-value'                : f'{lb["lb_pvalue_r2"]:.2e}',
+            'Reject H0 (5%)'         : _reject(lb['lb_pvalue_r2']),
+            'BS Assumption Violated' : 'Constant volatility',
+            'Modeling Response'      : (
+                'Confirms GARCH dynamics \u2014 volatility is persistent'
+            ),
+        },
+        {
+            'Test'                   : 'ADF',
+            'H0'                     : 'Unit root present (non-stationary)',
+            'Statistic'              : f'ADF = {adf["adf_stat"]:.2f}',
+            'p-value'                : f'{adf["adf_pvalue"]:.2e}',
+            'Reject H0 (5%)'         : _reject(adf['adf_pvalue']),
+            'BS Assumption Violated' : '\u2014 (prerequisite, not a violation)',
+            'Modeling Response'      : (
+                'Series is stationary; GARCH estimation is valid'
+            ),
+        },
+    ]
+
+    df = pd.DataFrame(rows).set_index('Test')
+    return df
