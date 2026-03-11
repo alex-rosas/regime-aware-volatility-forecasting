@@ -215,3 +215,5 @@ notebooks/scratch.ipynb
 .vscode/
 scratch/
 mlruns/
+.DS_Store
+notebooks/mlruns/
