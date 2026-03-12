@@ -61,6 +61,24 @@ class VolatilityModel:
         Set after calling fit(). None before fitting.
     returns_   : pd.Series | None
         The raw (unscaled) return series passed to fit().
+    Methods
+    -------
+    fit(returns, disp='off') -> self
+        Fit the model to the returns. Returns self for chaining.
+    summary() -> dict
+        Return a flat dict of parameter estimates and fit metrics.
+    to_frame() -> pd.DataFrame
+        Return the summary as a formatted DataFrame with standard errors.
+    conditional_volatility() -> pd.Series
+        Return the annualised conditional volatility in decimal units.
+    std_resid() -> pd.Series
+        Return the standardized residuals for diagnostics.
+    save(path) -> None
+        Pickle the fitted model to disk.
+    load(path) -> VolatilityModel
+        Load a fitted model from disk.
+    log_to_mlflow(run_name=None) -> None
+        Log the model's parameters and metrics to MLflow.
     """
 
     def __init__(self, model_type: str) -> None:
@@ -191,9 +209,12 @@ class VolatilityModel:
         pd.Series with the same DatetimeIndex as the input returns.
         """
         self._check_fitted()
+        SCALE = 100
         sigma_daily = self.result_.conditional_volatility / SCALE
         sigma_ann   = sigma_daily * np.sqrt(252)
-        sigma_ann.index = self.returns_.index[1:]  # arch drops first obs
+        
+        # align index safely regardless of whether arch drops first obs
+        sigma_ann.index = self.returns_.index[len(self.returns_) - len(sigma_ann):]
         sigma_ann.name  = f'sigma_{self.model_type.lower()}_ann'
         return sigma_ann
 
