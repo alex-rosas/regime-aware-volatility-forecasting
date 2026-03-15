@@ -1,20 +1,50 @@
-fredapi==0.5.1
-arch==6.3.0
-hmmlearn==0.3.2
-mapie==0.8.3
-great-expectations==0.18.12
-mlflow==2.13.0
-dvc==3.50.0
-streamlit==1.35.0
-pandas==2.2.2
+# VolatilityRegimes — locked dependencies
+# Verified working on Python 3.11, macOS (Apple Silicon)
+# Last verified: March 2026
+#
+# IMPORTANT: install order matters for binary compatibility
+# Step 1: conda install numpy=1.26.4 pandas=2.2.2 scipy=1.11.4 matplotlib=3.9.0 seaborn=0.13.2 -y
+# Step 2: pip install -r requirements.txt
+# Step 3: pip install "setuptools<70"  ← fixes pkg_resources on setuptools 82+
+
+# core scientific stack
 numpy==1.26.4
+pandas==2.2.2
+scipy==1.11.4
 matplotlib==3.9.0
 seaborn==0.13.2
-plotly==5.22.0
 statsmodels==0.14.2
-scipy==1.13.1
-scikit-learn==1.5.0
+
+# econometric models
+arch==6.3.0
+hmmlearn==0.3.2
+
+# machine learning
+scikit-learn==1.4.2
 xgboost==2.0.3
+shap==0.45.1
+mapie==0.8.3
+
+# experiment tracking
+mlflow==2.9.2
+
+# data validation
+great-expectations==0.18.12
+
+# data acquisition
+fredapi==0.5.1
+yfinance
 requests==2.32.3
+
+# pipeline and versioning
+dvc==3.50.0
 python-dotenv==1.0.1
+
+# app
+streamlit==1.35.0
+plotly==5.22.0
+
+# dev and testing
 pytest==8.2.2
+ipykernel
+jupyterlab
