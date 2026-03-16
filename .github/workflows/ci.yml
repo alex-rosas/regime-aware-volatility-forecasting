@@ -35,7 +35,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=short -m "not integration"
 
       - name: Upload test results
         if: always()

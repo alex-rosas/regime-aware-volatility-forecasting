@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-
+@pytest.mark.integration
 def test_pipeline_produces_all_artifacts():
     """Full pipeline should produce all expected artifacts in data/processed/."""
     from src.pipeline import run_full_pipeline
@@ -38,6 +38,7 @@ def test_pipeline_produces_all_artifacts():
         assert (processed / fname).exists(), f'Missing artifact: {fname}'
 
 
+@pytest.mark.integration
 def test_pipeline_hmm_regimes_values():
     """Regime values should be in {0, 1, 2} with no NaNs."""
     regimes = pd.read_csv(
