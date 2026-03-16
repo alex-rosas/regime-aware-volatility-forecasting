@@ -48,7 +48,7 @@ def test_pipeline_hmm_regimes_values():
     assert regimes['regime'].isna().sum() == 0
     assert set(regimes['regime'].unique()).issubset({0, 1, 2})
 
-
+@pytest.mark.integration
 def test_pipeline_volatilities_positive():
     """All conditional volatility values should be positive."""
     vols = pd.read_csv(
@@ -57,7 +57,7 @@ def test_pipeline_volatilities_positive():
     )
     assert (vols > 0).all().all()
 
-
+@pytest.mark.integration
 def test_pipeline_hybrid_predictions_shape():
     """Predictions CSV should have 4 columns and no NaNs."""
     preds = pd.read_csv(
@@ -67,7 +67,7 @@ def test_pipeline_hybrid_predictions_shape():
     assert preds.shape[1] == 4
     assert preds.isna().sum().sum() == 0
 
-
+@pytest.mark.integration
 def test_pipeline_conformal_intervals_bounds():
     """Upper bounds should always exceed lower bounds."""
     intervals = pd.read_csv(
@@ -77,7 +77,7 @@ def test_pipeline_conformal_intervals_bounds():
     for level in ['80', '90', '95']:
         assert (intervals[f'upper_{level}'] > intervals[f'lower_{level}']).all()
 
-
+@pytest.mark.integration
 def test_pipeline_conformal_coverage_90():
     """90% conformal interval should achieve at least 85% empirical coverage."""
     intervals = pd.read_csv(
