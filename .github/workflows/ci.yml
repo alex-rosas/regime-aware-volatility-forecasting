@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install conda dependencies via pip
+        run: |
+          python -m pip install --upgrade pip
+          pip install "setuptools<70"
+          pip install numpy==1.26.4 pandas==2.2.2 scipy==1.11.4 matplotlib==3.9.0 seaborn==0.13.2
+
+      - name: Install project dependencies
+        run: |
+          pip install arch==6.3.0 --no-binary arch
+          pip install hmmlearn==0.3.2 xgboost==2.0.3 shap==0.45.1 scikit-learn==1.4.2
+          pip install mlflow==2.9.2 statsmodels==0.14.2 mapie==0.8.3
+          pip install great-expectations==0.18.12
+          pip install pytest==8.2.2
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: .pytest_cache/
