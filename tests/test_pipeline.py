@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 @pytest.mark.integration
 def test_pipeline_produces_all_artifacts():
-    from src.pipeline import run_full_pipeline
-    run_full_pipeline()
+    from src.pipeline import run_pipeline_end_to_end
+    run_pipeline_end_to_end()
     expected_files = [
         'garch.pkl', 'egarch.pkl', 'hmm.pkl', 'hybrid_model.pkl',
         'conformal.pkl', 'hmm_regimes.csv', 'garch_egarch_volatilities.csv',
