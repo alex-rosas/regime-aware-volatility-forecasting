@@ -4,8 +4,25 @@ src/pipeline.py
 Full end-to-end pipeline for the VolatilityRegimes project.
 
 Runs all modeling steps in sequence from raw data to conformal
-prediction intervals. Designed to be run as a script or imported
-and called as run_full_pipeline().
+prediction intervals in a single function call.
+
+When to use this script
+-----------------------
+Use this script for:
+    - Quick local runs during development and experimentation
+    - Interactive use from notebooks or a REPL
+    - Debugging the full pipeline flow end-to-end
+    - Sanity checks after making changes to model logic
+
+Do NOT use this script for:
+    - Reproducible experiment tracking    → use: dvc repro
+    - Partial re-runs after param changes → use: dvc repro
+    - CI/CD or production runs            → use: dvc repro
+
+In production and experiment contexts, DVC manages the pipeline
+via dvc.yaml, calling individual stage scripts under stages/.
+Those stage scripts reuse the same step functions defined here,
+so no logic is duplicated.
 
 Usage
 -----
@@ -13,19 +30,18 @@ Usage
     python src/pipeline.py
 
     # from Python
-    from src.pipeline import run_full_pipeline
-    run_full_pipeline()
+    from src.pipeline import run_pipeline_end_to_end
+    run_pipeline_end_to_end()
 
 Steps
 -----
-    1. Load and validate raw data
-    2. Compute returns
+    1. Load raw data
+    2. Compute log-returns
     3. Fit GARCH(1,1)-t and EGARCH(1,1)-t
     4. Fit 3-state HMM
     5. Export regime and volatility features
     6. Build feature matrix and fit hybrid XGBoost model
     7. Calibrate conformal predictor
-    8. Export all artifacts
 
 All artifacts are saved to data/processed/.
 """
@@ -351,9 +367,12 @@ def step_fit_conformal(
 # main
 # ---------------------------------------------------------------------------
 
-def run_full_pipeline() -> None:
+def run_pipeline_end_to_end() -> None:
     """
-    Run the full VolatilityRegimes pipeline end-to-end.
+    Run the full VolatilityRegimes pipeline in a single shot.
+
+    Intended for development, interactive use, and quick local runs.
+    For reproducible experiment tracking and partial re-runs use dvc repro.
 
     Steps:
         1. Load raw data
@@ -389,4 +408,4 @@ def run_full_pipeline() -> None:
 
 
 if __name__ == '__main__':
-    run_full_pipeline()
+    run_pipeline_end_to_end()
