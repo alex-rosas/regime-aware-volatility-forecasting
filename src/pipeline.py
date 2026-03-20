@@ -36,27 +36,26 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.data.describe import compute_returns
+from src.logger import get_logger, setup_logging
 from src.models.conformal import ConformalPredictor
 from src.models.garch import VolatilityModel
 from src.models.hmm import RegimeHMM
 from src.models.hybrid import HybridVolatilityModel
 
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-def _log(step: str, msg: str) -> None:
-    print(f'[{step}] {msg}')
+logger = get_logger(__name__)
 
 
-def _elapsed(t0: float) -> str:
-    return f'{time.time() - t0:.1f}s'
+def _load_params() -> dict:
+    """Load pipeline parameters from params.yaml at project root."""
+    params_path = ROOT / 'params.yaml'
+    with open(params_path) as f:
+        return yaml.safe_load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +72,7 @@ def step_load_data() -> tuple[pd.Series, pd.DataFrame]:
     macro  : pd.DataFrame — VIXCLS and T10Y2Y aligned to business days
     """
     t0 = time.time()
-    _log('1/7', 'Loading raw data...')
+    logger.info('[1/7] Loading raw data...')
 
     prices = pd.read_csv(
         ROOT / 'data/raw/mxn_usd.csv',
@@ -87,8 +86,8 @@ def step_load_data() -> tuple[pd.Series, pd.DataFrame]:
     macro.index.name = 'Date'
     macro = macro[['VIXCLS', 'T10Y2Y']]
 
-    _log('1/7', f'Done — prices: {len(prices):,} rows, '
-                f'macro: {len(macro):,} rows  ({_elapsed(t0)})')
+    logger.info(f'[1/7] Done — prices: {len(prices):,} rows, '
+                f'macro: {len(macro):,} rows  ({time.time() - t0:.1f}s)')
     return prices, macro
 
 
@@ -101,13 +100,13 @@ def step_compute_returns(prices: pd.Series) -> pd.Series:
     pd.Series of log-returns with DatetimeIndex.
     """
     t0 = time.time()
-    _log('2/7', 'Computing log-returns...')
+    logger.info('[2/7] Computing log-returns...')
 
     returns = compute_returns(prices)
 
-    _log('2/7', f'Done — {len(returns):,} observations  '
+    logger.info(f'[2/7] Done — {len(returns):,} observations  '
                 f'({returns.index[0].date()} → {returns.index[-1].date()})  '
-                f'({_elapsed(t0)})')
+                f'({time.time() - t0:.1f}s)')
     return returns
 
 
@@ -122,7 +121,7 @@ def step_fit_garch(returns: pd.Series) -> tuple[VolatilityModel, VolatilityModel
     garch, egarch : fitted VolatilityModel instances
     """
     t0 = time.time()
-    _log('3/7', 'Fitting GARCH(1,1)-t and EGARCH(1,1)-t...')
+    logger.info('[3/7] Fitting GARCH(1,1)-t and EGARCH(1,1)-t...')
 
     garch  = VolatilityModel('GARCH').fit(returns)
     egarch = VolatilityModel('EGARCH').fit(returns)
@@ -132,10 +131,10 @@ def step_fit_garch(returns: pd.Series) -> tuple[VolatilityModel, VolatilityModel
 
     gs = garch.summary()
     es = egarch.summary()
-    _log('3/7', f'GARCH  — persistence={gs["persistence"]:.4f}, '
+    logger.info(f'[3/7] GARCH  — persistence={gs["persistence"]:.4f}, '
                 f'nu={gs["nu"]:.2f}, BIC={gs["bic"]:.2f}')
-    _log('3/7', f'EGARCH — persistence={es["persistence"]:.4f}, '
-                f'gamma={es["gamma"]:.4f}, BIC={es["bic"]:.2f}  ({_elapsed(t0)})')
+    logger.info(f'[3/7] EGARCH — persistence={es["persistence"]:.4f}, '
+                f'gamma={es["gamma"]:.4f}, BIC={es["bic"]:.2f}  ({time.time() - t0:.1f}s)')
 
     return garch, egarch
 
@@ -152,18 +151,24 @@ def step_fit_hmm(returns: pd.Series) -> RegimeHMM:
     hmm : fitted RegimeHMM instance
     """
     t0 = time.time()
-    _log('4/7', 'Fitting 3-state HMM...')
+    params = _load_params()
+    hmm_cfg = params['hmm']
+    logger.info(f'[4/7] Fitting {hmm_cfg["n_components"]}-state HMM...')
 
-    hmm = RegimeHMM(n_components=3, n_iter=1000, random_state=42)
+    hmm = RegimeHMM(
+        n_components=hmm_cfg['n_components'],
+        n_iter=hmm_cfg['n_iter'],
+        random_state=hmm_cfg['random_state'],
+    )
     hmm.fit(returns)
 
     s = hmm.summary()
-    _log('4/7', f'Converged={s["converged"]}, '
+    logger.info(f'[4/7] Converged={s["converged"]}, '
                 f'BIC={s["bic"]:.2f}, '
                 f'iterations={s["n_iter_run"]}')
 
     regimes = hmm.predict(returns)
-    _log('4/7', f'Regime counts: {regimes.value_counts().sort_index().to_dict()}')
+    logger.info(f'[4/7] Regime counts: {regimes.value_counts().sort_index().to_dict()}')
 
     hmm.save(ROOT / 'data/processed/hmm.pkl')
 
@@ -184,7 +189,7 @@ def step_export_features(
         data/processed/garch_egarch_volatilities.csv
     """
     t0 = time.time()
-    _log('5/7', 'Exporting features...')
+    logger.info('[5/7] Exporting features...')
 
     regimes = hmm.predict(returns)
     regimes.to_frame('regime').to_csv(ROOT / 'data/processed/hmm_regimes.csv')
@@ -194,8 +199,8 @@ def step_export_features(
     vols       = pd.concat([garch_vol, egarch_vol], axis=1).dropna()
     vols.to_csv(ROOT / 'data/processed/garch_egarch_volatilities.csv')
 
-    _log('5/7', f'hmm_regimes.csv: {len(regimes):,} rows | '
-                f'volatilities.csv: {len(vols):,} rows  ({_elapsed(t0)})')
+    logger.info(f'[5/7] hmm_regimes.csv: {len(regimes):,} rows | '
+                f'volatilities.csv: {len(vols):,} rows  ({time.time() - t0:.1f}s)')
 
 
 def step_fit_hybrid(
@@ -217,7 +222,9 @@ def step_fit_hybrid(
     y_val    : validation target
     """
     t0 = time.time()
-    _log('6/7', 'Fitting hybrid XGBoost model...')
+    params = _load_params()
+    trading_days = params['data']['trading_days']
+    logger.info('[6/7] Fitting hybrid XGBoost model...')
 
     # load processed features
     regimes = pd.read_csv(
@@ -235,14 +242,23 @@ def step_fit_hybrid(
     # build aligned dataset
     data = pd.concat([returns, macro_aligned, regimes, vols], axis=1).dropna()
 
-    hybrid       = HybridVolatilityModel()
+    xgb_cfg = params['xgboost']
+    hybrid   = HybridVolatilityModel(
+        n_estimators=xgb_cfg['n_estimators'],
+        learning_rate=xgb_cfg['learning_rate'],
+        max_depth=xgb_cfg['max_depth'],
+        subsample=xgb_cfg['subsample'],
+        colsample_bytree=xgb_cfg['colsample_bytree'],
+        early_stopping_rounds=xgb_cfg['early_stopping_rounds'],
+        random_state=xgb_cfg['random_state'],
+    )
     X, y         = hybrid.build_features(data)
     X_train, y_train, X_val, y_val, X_test, y_test = HybridVolatilityModel.split(X, y)
 
     hybrid.fit(X_train, y_train, X_val, y_val)
 
     s = hybrid.summary()
-    _log('6/7', f'Best iteration={s["best_iteration"]}, '
+    logger.info(f'[6/7] Best iteration={s["best_iteration"]}, '
                 f'train RMSE={s["train_rmse"]:.6f}, '
                 f'val RMSE={s["val_rmse"]:.6f}')
 
@@ -251,8 +267,8 @@ def step_fit_hybrid(
 
     # save test predictions
     y_pred_hybrid = hybrid.predict(X_test)
-    y_pred_garch  = (X_test['sigma_garch_ann']  / np.sqrt(252)).values
-    y_pred_egarch = (X_test['sigma_egarch_ann'] / np.sqrt(252)).values
+    y_pred_garch  = (X_test['sigma_garch_ann']  / np.sqrt(trading_days)).values
+    y_pred_egarch = (X_test['sigma_egarch_ann'] / np.sqrt(trading_days)).values
 
     pd.DataFrame({
         'y_true'        : y_test.values,
@@ -267,7 +283,7 @@ def step_fit_hybrid(
         'y_pred_hybrid' : hybrid.predict(X_val),
     }, index=y_val.index).to_csv(ROOT / 'data/processed/hybrid_val_predictions.csv')
 
-    _log('6/7', f'Predictions saved  ({_elapsed(t0)})')
+    logger.info(f'[6/7] Predictions saved  ({time.time() - t0:.1f}s)')
 
     return hybrid, X_val, y_val
 
@@ -287,7 +303,9 @@ def step_fit_conformal(
     cp : fitted ConformalPredictor
     """
     t0 = time.time()
-    _log('7/7', 'Calibrating conformal predictor...')
+    params = _load_params()
+    alpha_levels = params['conformal']['alpha_levels']
+    logger.info('[7/7] Calibrating conformal predictor...')
 
     val_data  = pd.read_csv(
         ROOT / 'data/processed/hybrid_val_predictions.csv',
@@ -308,26 +326,24 @@ def step_fit_conformal(
     y_true_test = test_data['y_true'].values
     results     = cp.predict_all(y_pred_test)
 
-    pd.DataFrame({
-        'y_true'   : y_true_test,
-        'y_pred'   : y_pred_test,
-        'lower_80' : results['0.2']['lower'],
-        'upper_80' : results['0.2']['upper'],
-        'lower_90' : results['0.1']['lower'],
-        'upper_90' : results['0.1']['upper'],
-        'lower_95' : results['0.05']['lower'],
-        'upper_95' : results['0.05']['upper'],
-    }, index=test_data.index).to_csv(
+    conf_cols = {'y_true': y_true_test, 'y_pred': y_pred_test}
+    for alpha in alpha_levels:
+        key = str(round(alpha, 2))
+        coverage = int((1 - alpha) * 100)
+        conf_cols[f'lower_{coverage}'] = results[key]['lower']
+        conf_cols[f'upper_{coverage}'] = results[key]['upper']
+
+    pd.DataFrame(conf_cols, index=test_data.index).to_csv(
         ROOT / 'data/processed/conformal_intervals.csv'
     )
 
     cp.save(ROOT / 'data/processed/conformal.pkl')
 
-    for alpha in [0.20, 0.10, 0.05]:
+    for alpha in alpha_levels:
         cov = cp.coverage(y_true_test, y_pred_test, alpha)
-        _log('7/7', f'Coverage {1-alpha:.0%}: {cov:.2%}')
+        logger.info(f'[7/7] Coverage {1 - alpha:.0%}: {cov:.2%}')
 
-    _log('7/7', f'Done  ({_elapsed(t0)})')
+    logger.info(f'[7/7] Done  ({time.time() - t0:.1f}s)')
     return cp
 
 
@@ -348,12 +364,11 @@ def run_full_pipeline() -> None:
         6. Fit hybrid model
         7. Calibrate conformal predictor
     """
+    setup_logging()
     t_total = time.time()
-    print()
-    print('=' * 60)
-    print('VolatilityRegimes — Full Pipeline')
-    print('=' * 60)
-    print()
+    logger.info('=' * 60)
+    logger.info('VolatilityRegimes — Full Pipeline')
+    logger.info('=' * 60)
 
     prices, macro           = step_load_data()
     returns                 = step_compute_returns(prices)
@@ -363,16 +378,14 @@ def run_full_pipeline() -> None:
     hybrid, X_val, y_val    = step_fit_hybrid(returns, macro)
     cp                      = step_fit_conformal(hybrid)
 
-    print()
-    print('=' * 60)
-    print(f'Pipeline complete — total time: {_elapsed(t_total)}')
-    print('Artifacts saved to data/processed/:')
+    logger.info('=' * 60)
+    logger.info(f'Pipeline complete — total time: {time.time() - t_total:.1f}s')
+    logger.info('Artifacts saved to data/processed/:')
     for f in sorted((ROOT / 'data/processed').glob('*.pkl')):
-        print(f'  {f.name}')
+        logger.info(f'  {f.name}')
     for f in sorted((ROOT / 'data/processed').glob('*.csv')):
-        print(f'  {f.name}')
-    print('=' * 60)
-    print()
+        logger.info(f'  {f.name}')
+    logger.info('=' * 60)
 
 
 if __name__ == '__main__':
