@@ -29,7 +29,7 @@ jobs:
         run: |
           pip install arch==6.3.0 --no-binary arch
           pip install hmmlearn==0.3.2 xgboost==2.0.3 shap==0.45.1 scikit-learn==1.4.2
-          pip install mlflow==2.9.2 statsmodels==0.14.2 mapie==0.8.3
+          pip install mlflow==2.9.2 statsmodels==0.14.2
           pip install great-expectations==0.18.12
           pip install pytest==8.2.2
 
