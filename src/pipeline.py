@@ -102,6 +102,9 @@ def step_load_data() -> tuple[pd.Series, pd.DataFrame]:
     macro.index.name = 'Date'
     macro = macro[['VIXCLS', 'T10Y2Y']]
 
+    prices.to_csv(ROOT / 'data/processed/prices.csv')
+    macro.to_csv(ROOT / 'data/processed/macro.csv')
+
     logger.info(f'[1/7] Done — prices: {len(prices):,} rows, '
                 f'macro: {len(macro):,} rows  ({time.time() - t0:.1f}s)')
     return prices, macro
@@ -119,6 +122,8 @@ def step_compute_returns(prices: pd.Series) -> pd.Series:
     logger.info('[2/7] Computing log-returns...')
 
     returns = compute_returns(prices)
+
+    returns.to_csv(ROOT / 'data/processed/returns.csv')
 
     logger.info(f'[2/7] Done — {len(returns):,} observations  '
                 f'({returns.index[0].date()} → {returns.index[-1].date()})  '

@@ -1,0 +1,84 @@
+stages:
+
+  load_data:
+    cmd: python stages/01_load_data.py
+    deps:
+      - data/raw/mxn_usd.csv
+      - data/raw/macro.csv
+      - stages/01_load_data.py
+    outs:
+      - data/processed/prices.csv
+      - data/processed/macro.csv
+
+  compute_returns:
+    cmd: python stages/02_compute_returns.py
+    deps:
+      - data/processed/prices.csv
+      - stages/02_compute_returns.py
+    outs:
+      - data/processed/returns.csv
+
+  fit_garch:
+    cmd: python stages/03_fit_garch.py
+    deps:
+      - data/processed/returns.csv
+      - stages/03_fit_garch.py
+    outs:
+      - data/processed/garch.pkl
+      - data/processed/egarch.pkl
+
+  fit_hmm:
+    cmd: python stages/04_fit_hmm.py
+    deps:
+      - data/processed/returns.csv
+      - stages/04_fit_hmm.py
+    params:
+      - params.yaml:
+          - hmm
+    outs:
+      - data/processed/hmm.pkl
+
+  export_features:
+    cmd: python stages/05_export_features.py
+    deps:
+      - data/processed/returns.csv
+      - data/processed/garch.pkl
+      - data/processed/egarch.pkl
+      - data/processed/hmm.pkl
+      - stages/05_export_features.py
+    outs:
+      - data/processed/hmm_regimes.csv
+      - data/processed/garch_egarch_volatilities.csv
+
+  fit_hybrid:
+    cmd: python stages/06_fit_hybrid.py
+    deps:
+      - data/processed/returns.csv
+      - data/processed/macro.csv
+      - data/processed/hmm_regimes.csv
+      - data/processed/garch_egarch_volatilities.csv
+      - stages/06_fit_hybrid.py
+    params:
+      - params.yaml:
+          - xgboost
+          - data
+    outs:
+      - data/processed/hybrid_model.pkl
+      - data/processed/hybrid_predictions.csv
+      - data/processed/hybrid_val_predictions.csv
+
+  fit_conformal:
+    cmd: python stages/07_fit_conformal.py
+    deps:
+      - data/processed/hybrid_val_predictions.csv
+      - data/processed/hybrid_predictions.csv
+      - stages/07_fit_conformal.py
+    params:
+      - params.yaml:
+          - conformal
+    outs:
+      - data/processed/conformal.pkl
+      - data/processed/conformal_intervals.csv
+    metrics:
+      - data/processed/metrics.json:
+          cache: false
