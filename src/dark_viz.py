@@ -63,7 +63,7 @@ class _Palette:
 
     # Model lines
     GARCH   : str = '#4FC3F7'
-    EGARCH  : str = '#81D4FA'
+    EGARCH  : str = '#CE93D8'
     HYBRID  : str = '#FF7043'
     ACTUAL  : str = '#FAFAFA'
 

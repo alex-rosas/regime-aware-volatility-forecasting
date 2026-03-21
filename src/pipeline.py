@@ -613,7 +613,12 @@ def step_walk_forward(
 
 def _build_pipeline_diagram(path: Path) -> None:
     """
-    Draw the nine DVC pipeline stages as a horizontal flow diagram.
+    Draw the nine DVC pipeline stages as a backwards-C (snake) flow diagram.
+
+    Top row  (left → right) : 01 → 02 → 03 → 04 → 05
+    Connector (top-right down): 05 ↓ 06
+    Bottom row (right → left): 06 → 07 → 08 → 09
+
     Imports matplotlib locally — only called from step_build_figures.
     """
     import matplotlib.pyplot as plt
@@ -621,46 +626,70 @@ def _build_pipeline_diagram(path: Path) -> None:
     import matplotlib.colors as mcolors
     from src.dark_viz import C, savefig
 
-    stages = [
-        ('01\nLoad Data',     C.GARCH),
-        ('02\nReturns',       C.GARCH),
-        ('03\nGARCH/EGARCH',  C.GARCH),
-        ('04\nHMM',           C.MED),
-        ('05\nFeatures',      C.MED),
-        ('06\nHybrid XGB',    C.HYBRID),
-        ('07\nConformal',     C.HYBRID),
-        ('08\nWalk-Forward',  C.HYBRID),
-        ('09\nFigures',       C.LOW),
+    # top row: (x_position, label, colour)
+    top = [
+        (0, '01\nLoad Data',    C.GARCH),
+        (1, '02\nReturns',      C.GARCH),
+        (2, '03\n(E)GARCH',     C.GARCH),
+        (3, '04\nHMM',          C.MED),
+        (4, '05\nFeatures',     C.MED),
+    ]
+    # bottom row right-to-left: 06 at x=4, 07 at x=3, 08 at x=2, 09 at x=1
+    bot = [
+        (4, '06\nHybrid XGB',   C.HYBRID),
+        (3, '07\nConformal',    C.HYBRID),
+        (2, '08\nWalk-Forward', C.HYBRID),
+        (1, '09\nFigures',      C.LOW),
     ]
 
-    fig, ax = plt.subplots(figsize=(16, 2.8))
-    ax.set_xlim(-0.6, len(stages) - 0.4)
-    ax.set_ylim(-0.8, 0.8)
+    fig, ax = plt.subplots(figsize=(9, 4.2))
+    ax.set_xlim(-0.55, 4.55)
+    ax.set_ylim(-0.38, 1.45)
     ax.axis('off')
 
-    box_w, box_h = 0.72, 0.48
+    box_w, box_h = 0.82, 0.46
+    Y_TOP, Y_BOT = 1.0, 0.0
 
-    for i, (label, colour) in enumerate(stages):
+    def draw_box(x, y, label, colour):
         face_rgba = (*mcolors.to_rgb(colour), 0.18)
         rect = mpatches.FancyBboxPatch(
-            (i - box_w / 2, -box_h / 2), box_w, box_h,
+            (x - box_w / 2, y - box_h / 2), box_w, box_h,
             boxstyle='round,pad=0.04',
-            linewidth=1.2,
-            edgecolor=colour,
-            facecolor=face_rgba,
+            linewidth=1.2, edgecolor=colour, facecolor=face_rgba,
         )
         ax.add_patch(rect)
-        ax.text(i, 0, label, ha='center', va='center',
-                color=C.TEXT, fontsize=8.5, fontweight='bold',
-                linespacing=1.3)
-        if i < len(stages) - 1:
-            ax.annotate(
-                '', xy=(i + box_w / 2 + 0.04, 0),
-                xytext=(i + box_w / 2 - 0.04 + (1 - box_w), 0),
-                arrowprops=dict(arrowstyle='->', color=C.MUTED, lw=1.1),
-            )
+        ax.text(x, y, label, ha='center', va='center',
+                color=C.TEXT, fontsize=13, fontweight='bold', linespacing=1.5)
 
-    ax.set_title('DVC Pipeline — volatility_regimes', color=C.TEXT, fontsize=11, pad=8)
+    def arrow(x0, y0, x1, y1):
+        ax.annotate(
+            '', xy=(x1, y1), xytext=(x0, y0),
+            arrowprops=dict(arrowstyle='->', color=C.MUTED, lw=1.1),
+        )
+
+    # draw top row + horizontal arrows
+    for i, (x, label, colour) in enumerate(top):
+        draw_box(x, Y_TOP, label, colour)
+        if i < len(top) - 1:
+            arrow(x + box_w / 2 + 0.04, Y_TOP,
+                  top[i + 1][0] - box_w / 2 - 0.04, Y_TOP)
+
+    # draw bottom row + horizontal arrows (right to left)
+    for i, (x, label, colour) in enumerate(bot):
+        draw_box(x, Y_BOT, label, colour)
+        if i < len(bot) - 1:
+            next_x = bot[i + 1][0]
+            arrow(x - box_w / 2 - 0.04, Y_BOT,
+                  next_x + box_w / 2 + 0.04, Y_BOT)
+
+    # vertical connector: bottom of 05 (x=4, top) → top of 06 (x=4, bot)
+    arrow(4, Y_TOP - box_h / 2 - 0.04,
+          4, Y_BOT + box_h / 2 + 0.04)
+
+    ax.set_title(
+        'DVC Pipeline — regime-aware-volatility-forecasting',
+        color=C.TEXT, fontsize=14, pad=12,
+    )
     savefig(fig, path)
 
 
@@ -783,14 +812,18 @@ def step_build_figures() -> None:
         coverage  = int((1 - alpha) * 100)
         lower     = intervals[f'lower_{coverage}'].values
         upper     = intervals[f'upper_{coverage}'].values
+        alpha_upper = alpha * phi
+        alpha_lower = alpha * (1 - phi)
         fig, ax   = plt.subplots(figsize=(14, 5))
         regime_band_ax(ax, regimes_test, alpha=0.12)
         ax.fill_between(intervals.index, lower, upper,
-                        color=C.BAND, alpha=0.18, label=f'{coverage}% interval')
-        ax.plot(intervals.index, upper,      color=C.UPPER,  lw=0.8, alpha=0.7)
-        ax.plot(intervals.index, lower,      color=C.LOWER,  lw=0.8, alpha=0.7)
-        ax.plot(intervals.index, y_true_int, color=C.ACTUAL, lw=0.6, alpha=0.8,
-                label='Realised')
+                        color=C.BAND, alpha=0.15)
+        ax.plot(intervals.index, upper, color=C.UPPER, lw=1.0,
+                label=f'Upper bound  (α_upper = {alpha_upper:.0%})')
+        ax.plot(intervals.index, lower, color=C.LOWER, lw=1.0,
+                label=f'Lower bound  (α_lower = {alpha_lower:.0%})')
+        ax.plot(intervals.index, y_true_int, color=C.ACTUAL, lw=0.7, alpha=0.9,
+                label='Realised volatility')
         ax.set_title(
             f'Asymmetric Conformal Intervals — {coverage}%  '
             f'(φ={phi},  α_upper={alpha * phi:.1%})'
@@ -938,11 +971,13 @@ def step_build_figures() -> None:
     upper_90 = intervals['upper_90'].values
     regime_band_ax(ax_r, regimes_test, alpha=0.12)
     ax_r.fill_between(intervals.index, lower_90, upper_90,
-                      color=C.BAND, alpha=0.18, label='90% interval')
-    ax_r.plot(intervals.index, upper_90,    color=C.UPPER,  lw=0.8, alpha=0.7)
-    ax_r.plot(intervals.index, lower_90,    color=C.LOWER,  lw=0.8, alpha=0.7)
-    ax_r.plot(intervals.index, y_true_int,  color=C.ACTUAL, lw=0.6, alpha=0.8,
-              label='Realised')
+                      color=C.BAND, alpha=0.15)
+    ax_r.plot(intervals.index, upper_90,   color=C.UPPER, lw=1.0,
+              label=f'Upper bound  (α_upper = {0.10 * phi:.0%})')
+    ax_r.plot(intervals.index, lower_90,   color=C.LOWER, lw=1.0,
+              label=f'Lower bound  (α_lower = {0.10 * (1-phi):.0%})')
+    ax_r.plot(intervals.index, y_true_int, color=C.ACTUAL, lw=0.7, alpha=0.9,
+              label='Realised volatility')
     ax_r.set_title(f'Asymmetric Conformal Intervals — 90%  (φ={phi})')
     ax_r.set_ylabel('Daily Volatility')
     ax_r.legend(ncol=3, framealpha=0.3, fontsize=9)
