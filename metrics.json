@@ -12,5 +12,12 @@
   "dm_pval_vs_egarch": 0.0,
   "coverage_80": 0.8067,
   "coverage_90": 0.9281,
-  "coverage_95": 0.9595
+  "coverage_95": 0.9595,
+  "wf_rmse_hybrid": 0.004291,
+  "wf_rmse_garch": 0.004836,
+  "wf_rmse_egarch": 0.004726,
+  "wf_rmse_improvement_pct": 11.28,
+  "wf_qlike_hybrid": 1.642033,
+  "wf_qlike_garch": 1.648576,
+  "wf_qlike_egarch": 1.64647
 }

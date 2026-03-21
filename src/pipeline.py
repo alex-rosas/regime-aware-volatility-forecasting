@@ -431,6 +431,170 @@ def step_fit_conformal(
 
 
 # ---------------------------------------------------------------------------
+# walk-forward validation
+# ---------------------------------------------------------------------------
+
+def step_walk_forward(
+    returns: pd.Series,
+    macro:   pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Expanding-window walk-forward validation of the XGBoost hybrid model.
+
+    Refits XGBoost on each expanding fold using precomputed HMM and GARCH
+    features. GARCH and HMM are NOT refit per fold — they are structural
+    models whose outputs are stable inputs to the feature matrix.
+
+    Saves:
+        data/processed/walkforward_predictions.csv
+
+    Updates:
+        metrics.json  — appends wf_* metrics
+
+    Returns
+    -------
+    pd.DataFrame of out-of-sample predictions across all folds.
+    """
+    t0 = time.time()
+    params       = _load_params()
+    wf_cfg       = params['walkforward']
+    xgb_cfg      = params['xgboost']
+    trading_days = params['data']['trading_days']
+
+    n_splits      = wf_cfg['n_splits']
+    step_size     = wf_cfg['step_size']
+    min_train_size = wf_cfg['min_train_size']
+
+    logger.info(f'[WF] Walk-forward validation — {n_splits} folds × {step_size} days')
+
+    # load precomputed features
+    regimes = pd.read_csv(
+        ROOT / 'data/processed/hmm_regimes.csv',
+        index_col='Date', parse_dates=True
+    )
+    vols = pd.read_csv(
+        ROOT / 'data/processed/garch_egarch_volatilities.csv',
+        index_col='Date', parse_dates=True
+    )
+
+    macro_aligned = macro.reindex(returns.index).ffill()
+    data = pd.concat([returns, macro_aligned, regimes, vols], axis=1).dropna()
+
+    # build full feature matrix using a temp model instance
+    tmp_model = HybridVolatilityModel()
+    X, y = tmp_model.build_features(data)
+    n    = len(X)
+
+    all_dates         = []
+    all_y_true        = []
+    all_y_pred_hybrid = []
+    all_y_pred_garch  = []
+    all_y_pred_egarch = []
+
+    for fold in range(n_splits):
+        test_end   = n - (n_splits - 1 - fold) * step_size
+        test_start = test_end - step_size
+        train_end  = test_start
+
+        if train_end < min_train_size:
+            logger.warning(f'[WF] Fold {fold + 1} skipped — insufficient training data')
+            continue
+
+        X_tr_full = X.iloc[:train_end]
+        y_tr_full = y.iloc[:train_end]
+        X_test    = X.iloc[test_start:test_end]
+        y_test    = y.iloc[test_start:test_end]
+
+        # internal val split for XGBoost early stopping (last 15% of train)
+        val_size = max(1, int(len(X_tr_full) * 0.15))
+        X_train  = X_tr_full.iloc[:-val_size]
+        y_train  = y_tr_full.iloc[:-val_size]
+        X_val    = X_tr_full.iloc[-val_size:]
+        y_val    = y_tr_full.iloc[-val_size:]
+
+        model = HybridVolatilityModel(
+            n_estimators          = xgb_cfg['n_estimators'],
+            learning_rate         = xgb_cfg['learning_rate'],
+            max_depth             = xgb_cfg['max_depth'],
+            subsample             = xgb_cfg['subsample'],
+            colsample_bytree      = xgb_cfg['colsample_bytree'],
+            early_stopping_rounds = xgb_cfg['early_stopping_rounds'],
+            random_state          = xgb_cfg['random_state'],
+        )
+        model.fit(X_train, y_train, X_val, y_val)
+
+        y_pred_hybrid = model.predict(X_test)
+        y_pred_garch  = (X_test['sigma_garch_ann']  / np.sqrt(trading_days)).values
+        y_pred_egarch = (X_test['sigma_egarch_ann'] / np.sqrt(trading_days)).values
+
+        all_dates.extend(y_test.index)
+        all_y_true.extend(y_test.values)
+        all_y_pred_hybrid.extend(y_pred_hybrid)
+        all_y_pred_garch.extend(y_pred_garch)
+        all_y_pred_egarch.extend(y_pred_egarch)
+
+        fold_rmse = float(np.sqrt(np.mean((y_test.values - y_pred_hybrid) ** 2)))
+        logger.info(
+            f'[WF] Fold {fold + 1}/{n_splits} — '
+            f'train: {train_end:,} obs | '
+            f'test: {y_test.index[0].date()} → {y_test.index[-1].date()} | '
+            f'RMSE: {fold_rmse:.4f}'
+        )
+
+    y_true        = np.array(all_y_true)
+    y_pred_hybrid = np.array(all_y_pred_hybrid)
+    y_pred_garch  = np.array(all_y_pred_garch)
+    y_pred_egarch = np.array(all_y_pred_egarch)
+
+    wf_rmse_hybrid         = float(np.sqrt(np.mean((y_true - y_pred_hybrid)  ** 2)))
+    wf_rmse_garch          = float(np.sqrt(np.mean((y_true - y_pred_garch)   ** 2)))
+    wf_rmse_egarch         = float(np.sqrt(np.mean((y_true - y_pred_egarch)  ** 2)))
+    wf_rmse_improvement_pct = round((wf_rmse_garch - wf_rmse_hybrid) / wf_rmse_garch * 100, 2)
+    wf_qlike_hybrid        = qlike(y_true, y_pred_hybrid)
+    wf_qlike_garch         = qlike(y_true, y_pred_garch)
+    wf_qlike_egarch        = qlike(y_true, y_pred_egarch)
+
+    # save out-of-sample predictions
+    wf_df = pd.DataFrame({
+        'y_true'        : y_true,
+        'y_pred_hybrid' : y_pred_hybrid,
+        'y_pred_garch'  : y_pred_garch,
+        'y_pred_egarch' : y_pred_egarch,
+    }, index=pd.DatetimeIndex(all_dates))
+    wf_df.index.name = 'Date'
+
+    with atomic_write(ROOT / 'data/processed/walkforward_predictions.csv') as tmp:
+        wf_df.to_csv(tmp)
+
+    # append wf metrics to metrics.json
+    metrics_path = ROOT / 'metrics.json'
+    with open(metrics_path) as f:
+        metrics = json.load(f)
+
+    metrics.update({
+        'wf_rmse_hybrid'          : round(wf_rmse_hybrid,          6),
+        'wf_rmse_garch'           : round(wf_rmse_garch,           6),
+        'wf_rmse_egarch'          : round(wf_rmse_egarch,          6),
+        'wf_rmse_improvement_pct' : wf_rmse_improvement_pct,
+        'wf_qlike_hybrid'         : round(wf_qlike_hybrid,         6),
+        'wf_qlike_garch'          : round(wf_qlike_garch,          6),
+        'wf_qlike_egarch'         : round(wf_qlike_egarch,         6),
+    })
+
+    with atomic_write(metrics_path) as tmp:
+        with open(tmp, 'w') as f:
+            json.dump(metrics, f, indent=2)
+
+    logger.info(
+        f'[WF] Done — WF RMSE hybrid={wf_rmse_hybrid:.4f} | '
+        f'GARCH={wf_rmse_garch:.4f} | '
+        f'improvement={wf_rmse_improvement_pct:+.1f}%  '
+        f'({time.time() - t0:.1f}s)'
+    )
+    return wf_df
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
@@ -449,6 +613,7 @@ def run_pipeline_end_to_end() -> None:
         5. Export features
         6. Fit hybrid model
         7. Calibrate conformal predictor
+        8. Walk-forward validation
     """
     setup_logging()
     t_total = time.time()
@@ -463,6 +628,7 @@ def run_pipeline_end_to_end() -> None:
     step_export_features(returns, garch, egarch, hmm)
     hybrid, X_val, y_val    = step_fit_hybrid(returns, macro)
     cp                      = step_fit_conformal(hybrid)
+    step_walk_forward(returns, macro)
 
     logger.info('=' * 60)
     logger.info(f'Pipeline complete — total time: {time.time() - t_total:.1f}s')

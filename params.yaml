@@ -17,3 +17,8 @@ data:
 
 conformal:
   alpha_levels: [0.20, 0.10, 0.05]
+
+walkforward:
+  n_splits: 5       # number of expanding folds
+  step_size: 252    # test window per fold (1 trading year)
+  min_train_size: 1260  # minimum 5 years of training data before first fold

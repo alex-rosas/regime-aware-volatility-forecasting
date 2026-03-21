@@ -82,3 +82,23 @@ stages:
     metrics:
       - metrics.json:
           cache: false
+
+  walkforward:
+    cmd: python stages/08_walkforward.py
+    deps:
+      - data/processed/returns.csv
+      - data/processed/macro.csv
+      - data/processed/hmm_regimes.csv
+      - data/processed/garch_egarch_volatilities.csv
+      - metrics.json
+      - stages/08_walkforward.py
+    params:
+      - params.yaml:
+          - walkforward
+          - xgboost
+          - data
+    outs:
+      - data/processed/walkforward_predictions.csv
+    metrics:
+      - metrics.json:
+          cache: false
