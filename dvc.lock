@@ -1,0 +1,199 @@
+schema: '2.0'
+stages:
+  load_data:
+    cmd: python stages/01_load_data.py
+    deps:
+    - path: data/raw/macro.csv
+      hash: md5
+      md5: 754c6f19ef1a940bbbc6a2c7548834c7
+      size: 230038
+    - path: data/raw/mxn_usd.csv
+      hash: md5
+      md5: e9c45414feb838e511743acda4ef2c52
+      size: 123608
+    - path: stages/01_load_data.py
+      hash: md5
+      md5: 89671f3f42603186ee2f04e68b5cb008
+      size: 443
+    outs:
+    - path: data/processed/macro.csv
+      hash: md5
+      md5: a281ce8c747acfd6155744bfcb5e8e09
+      size: 183252
+    - path: data/processed/prices.csv
+      hash: md5
+      md5: e9c45414feb838e511743acda4ef2c52
+      size: 123608
+  compute_returns:
+    cmd: python stages/02_compute_returns.py
+    deps:
+    - path: data/processed/prices.csv
+      hash: md5
+      md5: e9c45414feb838e511743acda4ef2c52
+      size: 123608
+    - path: stages/02_compute_returns.py
+      hash: md5
+      md5: 7c21948e411bb660869c68a6cd2dfe57
+      size: 566
+    outs:
+    - path: data/processed/returns.csv
+      hash: md5
+      md5: cec5a976708adc8b1bbe03ff30f34aa0
+      size: 216739
+  fit_garch:
+    cmd: python stages/03_fit_garch.py
+    deps:
+    - path: data/processed/returns.csv
+      hash: md5
+      md5: cec5a976708adc8b1bbe03ff30f34aa0
+      size: 216739
+    - path: stages/03_fit_garch.py
+      hash: md5
+      md5: 785e70c24953abf2e3666430c3fbc28c
+      size: 576
+    outs:
+    - path: data/processed/egarch.pkl
+      hash: md5
+      md5: db91fd8fa60fa98df40e66eb62da24d6
+      size: 952530
+    - path: data/processed/garch.pkl
+      hash: md5
+      md5: 71cd09a26fdc5369a1344171331e3743
+      size: 794233
+  fit_hmm:
+    cmd: python stages/04_fit_hmm.py
+    deps:
+    - path: data/processed/returns.csv
+      hash: md5
+      md5: cec5a976708adc8b1bbe03ff30f34aa0
+      size: 216739
+    - path: stages/04_fit_hmm.py
+      hash: md5
+      md5: a612332ded3ae799920df0d56b41aa51
+      size: 546
+    params:
+      params.yaml:
+        hmm:
+          n_components: 3
+          n_iter: 1000
+          random_state: 42
+    outs:
+    - path: data/processed/hmm.pkl
+      hash: md5
+      md5: d4346d94a9c7bb8d72fb463d3a9fbd3d
+      size: 161230
+  export_features:
+    cmd: python stages/05_export_features.py
+    deps:
+    - path: data/processed/egarch.pkl
+      hash: md5
+      md5: db91fd8fa60fa98df40e66eb62da24d6
+      size: 952530
+    - path: data/processed/garch.pkl
+      hash: md5
+      md5: 71cd09a26fdc5369a1344171331e3743
+      size: 794233
+    - path: data/processed/hmm.pkl
+      hash: md5
+      md5: d4346d94a9c7bb8d72fb463d3a9fbd3d
+      size: 161230
+    - path: data/processed/returns.csv
+      hash: md5
+      md5: cec5a976708adc8b1bbe03ff30f34aa0
+      size: 216739
+    - path: stages/05_export_features.py
+      hash: md5
+      md5: 5a7f3da20f64f2968896fad2d92e5454
+      size: 1014
+    outs:
+    - path: data/processed/garch_egarch_volatilities.csv
+      hash: md5
+      md5: c1f4079d6de88ea37d9c148a30186d2a
+      size: 334181
+    - path: data/processed/hmm_regimes.csv
+      hash: md5
+      md5: 07df1db43a63fc46f843b249842ff2de
+      size: 85656
+  fit_hybrid:
+    cmd: python stages/06_fit_hybrid.py
+    deps:
+    - path: data/processed/garch_egarch_volatilities.csv
+      hash: md5
+      md5: c1f4079d6de88ea37d9c148a30186d2a
+      size: 334181
+    - path: data/processed/hmm_regimes.csv
+      hash: md5
+      md5: 07df1db43a63fc46f843b249842ff2de
+      size: 85656
+    - path: data/processed/macro.csv
+      hash: md5
+      md5: a281ce8c747acfd6155744bfcb5e8e09
+      size: 183252
+    - path: data/processed/returns.csv
+      hash: md5
+      md5: cec5a976708adc8b1bbe03ff30f34aa0
+      size: 216739
+    - path: stages/06_fit_hybrid.py
+      hash: md5
+      md5: 3d7f1ec6d3655083239206fea324bbdd
+      size: 908
+    params:
+      params.yaml:
+        data:
+          trading_days: 252
+        xgboost:
+          n_estimators: 1000
+          learning_rate: 0.05
+          max_depth: 4
+          subsample: 0.8
+          colsample_bytree: 0.8
+          early_stopping_rounds: 50
+          random_state: 42
+    outs:
+    - path: data/processed/hybrid_model.pkl
+      hash: md5
+      md5: f01537e0ae0968123738cf220b7bfa82
+      size: 191289
+    - path: data/processed/hybrid_predictions.csv
+      hash: md5
+      md5: e0b3895571299e396f12f8375907603d
+      size: 83602
+    - path: data/processed/hybrid_val_predictions.csv
+      hash: md5
+      md5: 3e56874accb2c2def5c464635796ad26
+      size: 41991
+  fit_conformal:
+    cmd: python stages/07_fit_conformal.py
+    deps:
+    - path: data/processed/hybrid_predictions.csv
+      hash: md5
+      md5: e0b3895571299e396f12f8375907603d
+      size: 83602
+    - path: data/processed/hybrid_val_predictions.csv
+      hash: md5
+      md5: 3e56874accb2c2def5c464635796ad26
+      size: 41991
+    - path: stages/07_fit_conformal.py
+      hash: md5
+      md5: 335495fa8c2fc8cf88318bd241c5fe5c
+      size: 695
+    params:
+      params.yaml:
+        conformal:
+          alpha_levels:
+          - 0.2
+          - 0.1
+          - 0.05
+    outs:
+    - path: data/processed/conformal.pkl
+      hash: md5
+      md5: 338953f22be166f8775431f5a2fed764
+      size: 8138
+    - path: data/processed/conformal_intervals.csv
+      hash: md5
+      md5: d63aa7046d3abddf902a8ebc1e5c3402
+      size: 167955
+    - path: data/processed/metrics.json
+      hash: md5
+      md5: 1eb10481b37c2cab15cea7fb631ae367
+      size: 77
