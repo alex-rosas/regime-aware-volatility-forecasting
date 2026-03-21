@@ -2,4 +2,4 @@
     remote = origin
     autostage = true
 ['remote "origin"']
-    url = https://dagshub.com/alex-rosas/volatility_regimes.dvc
+    url = https://dagshub.com/alex-rosas/regime-aware-volatility-forecasting.dvc

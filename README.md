@@ -264,8 +264,8 @@ adaptive conformal prediction as a natural extension.
 
 ```bash
 # clone and set up
-git clone https://github.com/<user>/volatility_regimes
-cd volatility_regimes
+git clone https://github.com/alex-rosas/regime-aware-volatility-forecasting
+cd regime-aware-volatility-forecasting
 conda env create -f environment.yml
 conda activate volatility_regimes
 
