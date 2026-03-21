@@ -1,7 +1,7 @@
 """
-pages/02_vol_regimes.py
------------------------
-Full-period conditional volatility with HMM regime bands.
+pages/1_Volatility_Regimes.py
+------------------------------
+Full-period conditional volatility with HMM regime bands + SHAP importance.
 """
 
 from pathlib import Path
@@ -16,7 +16,7 @@ st.divider()
 
 fig = FIG_DIR / "01_vol_regimes.png"
 if fig.exists():
-    st.image(str(fig), use_column_width=True)
+    st.image(str(fig), use_container_width=True)
 else:
     st.warning("Figure not found. Run `dvc repro build_figures`.")
 
@@ -63,3 +63,20 @@ with col_high:
         """,
         unsafe_allow_html=True,
     )
+
+st.divider()
+
+# -----------------------------------------------------------------------
+# SHAP feature importance
+# -----------------------------------------------------------------------
+st.subheader("SHAP Feature Importance — XGBoost Hybrid")
+st.caption(
+    "Mean absolute SHAP value on the test set. "
+    "The HMM regime label is the dominant driver — "
+    "confirming that regime-awareness is the key source of the hybrid model's edge."
+)
+shap_fig = FIG_DIR / "07_shap.png"
+if shap_fig.exists():
+    st.image(str(shap_fig), use_container_width=True)
+else:
+    st.warning("`07_shap.png` not found. Run `dvc repro build_figures`.")

@@ -18,7 +18,7 @@ from pathlib import Path
 import streamlit as st
 
 st.set_page_config(
-    page_title="Volatility Regimes",
+    page_title="Regime-Aware Volatility Forecasting",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -52,7 +52,7 @@ def _fmt(v, pct: bool = False, decimals: int = 4) -> str:
 # page
 # -----------------------------------------------------------------------
 
-st.title("📈 Volatility Regimes — MXN/USD")
+st.title("📈 Regime-Aware Volatility Forecasting — MXN/USD")
 st.caption(
     "GARCH · EGARCH · 3-state HMM · XGBoost Hybrid · "
     "Asymmetric Conformal Prediction Intervals"
@@ -126,6 +126,6 @@ st.divider()
 st.subheader("DVC Pipeline")
 diag = FIG_DIR / "readme" / "pipeline_diagram.png"
 if diag.exists():
-    st.image(str(diag), use_column_width=True)
+    st.image(str(diag), use_container_width=True)
 else:
     st.info("Pipeline diagram not built yet.  Run `dvc repro build_figures`.")

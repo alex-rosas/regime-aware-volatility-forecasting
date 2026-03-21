@@ -1,5 +1,5 @@
 """
-pages/04_backtesting.py
+pages/3_Backtesting.py
 -----------------------
 Backtesting: walk-forward validation, Kupiec POF test,
 and regime-conditioned coverage gap.
@@ -15,7 +15,7 @@ FIG_DIR = ROOT / "assets" / "figures" / "dark"
 def _show(filename: str, caption: str = "") -> None:
     fig = FIG_DIR / filename
     if fig.exists():
-        st.image(str(fig), use_column_width=True)
+        st.image(str(fig), use_container_width=True)
         if caption:
             st.caption(caption)
     else:
