@@ -1,4 +1,15 @@
 {
+  "rmse_hybrid": 0.004462,
+  "rmse_garch": 0.004974,
+  "rmse_egarch": 0.004859,
+  "rmse_improvement_pct": 10.28,
+  "qlike_hybrid": 1.648011,
+  "qlike_garch": 1.638037,
+  "qlike_egarch": 1.639213,
+  "dm_stat_vs_garch": -6.6667,
+  "dm_pval_vs_garch": 0.0,
+  "dm_stat_vs_egarch": -5.3605,
+  "dm_pval_vs_egarch": 0.0,
   "coverage_80": 0.8067,
   "coverage_90": 0.9281,
   "coverage_95": 0.9595

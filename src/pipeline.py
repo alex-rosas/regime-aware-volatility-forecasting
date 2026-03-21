@@ -63,7 +63,7 @@ from src.logger import get_logger, setup_logging
 from src.models.conformal import ConformalPredictor
 from src.models.garch import VolatilityModel
 from src.models.hmm import RegimeHMM
-from src.models.hybrid import HybridVolatilityModel
+from src.models.hybrid import HybridVolatilityModel, diebold_mariano, qlike
 
 logger = get_logger(__name__)
 
@@ -305,7 +305,43 @@ def step_fit_hybrid(
         'y_pred_hybrid' : hybrid.predict(X_val),
     }, index=y_val.index).to_csv(ROOT / 'data/processed/hybrid_val_predictions.csv')
 
-    logger.info(f'[6/7] Predictions saved  ({time.time() - t0:.1f}s)')
+    # --- metrics -----------------------------------------------------------
+    y_true = y_test.values
+
+    rmse_hybrid  = float(np.sqrt(np.mean((y_true - y_pred_hybrid)  ** 2)))
+    rmse_garch   = float(np.sqrt(np.mean((y_true - y_pred_garch)   ** 2)))
+    rmse_egarch  = float(np.sqrt(np.mean((y_true - y_pred_egarch)  ** 2)))
+    rmse_improvement_pct = round((rmse_garch - rmse_hybrid) / rmse_garch * 100, 2)
+
+    qlike_hybrid = qlike(y_true, y_pred_hybrid)
+    qlike_garch  = qlike(y_true, y_pred_garch)
+    qlike_egarch = qlike(y_true, y_pred_egarch)
+
+    dm_stat_vs_garch,  dm_pval_vs_garch  = diebold_mariano(y_true, y_pred_hybrid, y_pred_garch)
+    dm_stat_vs_egarch, dm_pval_vs_egarch = diebold_mariano(y_true, y_pred_hybrid, y_pred_egarch)
+
+    metrics = {
+        'rmse_hybrid'           : round(rmse_hybrid,  6),
+        'rmse_garch'            : round(rmse_garch,   6),
+        'rmse_egarch'           : round(rmse_egarch,  6),
+        'rmse_improvement_pct'  : rmse_improvement_pct,
+        'qlike_hybrid'          : round(qlike_hybrid, 6),
+        'qlike_garch'           : round(qlike_garch,  6),
+        'qlike_egarch'          : round(qlike_egarch, 6),
+        'dm_stat_vs_garch'      : round(dm_stat_vs_garch,  4),
+        'dm_pval_vs_garch'      : round(dm_pval_vs_garch,  4),
+        'dm_stat_vs_egarch'     : round(dm_stat_vs_egarch, 4),
+        'dm_pval_vs_egarch'     : round(dm_pval_vs_egarch, 4),
+    }
+
+    with open(ROOT / 'metrics.json', 'w') as f:
+        json.dump(metrics, f, indent=2)
+    logger.info(
+        f'[6/7] RMSE hybrid={rmse_hybrid:.4f} | '
+        f'GARCH={rmse_garch:.4f} | '
+        f'improvement={rmse_improvement_pct:+.1f}%  '
+        f'({time.time() - t0:.1f}s)'
+    )
 
     return hybrid, X_val, y_val
 
@@ -361,14 +397,18 @@ def step_fit_conformal(
 
     cp.save(ROOT / 'data/processed/conformal.pkl')
 
-    metrics = {}
+    # read existing metrics written by step_fit_hybrid and append coverage
+    metrics_path = ROOT / 'metrics.json'
+    with open(metrics_path) as f:
+        metrics = json.load(f)
+
     for alpha in alpha_levels:
-        cov     = cp.coverage(y_true_test, y_pred_test, alpha)
-        key     = f'coverage_{int((1 - alpha) * 100)}'
+        cov = cp.coverage(y_true_test, y_pred_test, alpha)
+        key = f'coverage_{int((1 - alpha) * 100)}'
         metrics[key] = round(cov, 4)
         logger.info(f'[7/7] Coverage {1 - alpha:.0%}: {cov:.2%}')
 
-    with open(ROOT / 'metrics.json', 'w') as f:
+    with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     logger.info(f'[7/7] Metrics saved → metrics.json')
 
