@@ -67,8 +67,8 @@ st.divider()
 # -----------------------------------------------------------------------
 # key findings
 # -----------------------------------------------------------------------
-with st.expander("Key findings"):
-    st.markdown(
+st.subheader("Key findings")
+st.markdown(
         """
         **Walk-forward validation** confirms the hybrid model's
         out-of-sample edge: walk-forward RMSE improvement over GARCH
@@ -86,4 +86,4 @@ with st.expander("Key findings"):
         This is the empirical motivation for locally adaptive conformal
         prediction as a future extension.
         """
-    )
+)

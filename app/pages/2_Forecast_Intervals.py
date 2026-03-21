@@ -70,8 +70,8 @@ st.divider()
 # -----------------------------------------------------------------------
 # explainer
 # -----------------------------------------------------------------------
-with st.expander("How asymmetric conformal intervals work"):
-    st.markdown(
+st.subheader("How asymmetric conformal intervals work")
+st.markdown(
         """
         Standard (symmetric) split conformal prediction uses the
         absolute residuals from a calibration set to construct an
@@ -95,4 +95,4 @@ with st.expander("How asymmetric conformal intervals work"):
         correct null $\\alpha_\\text{upper} = \\phi\\alpha$, not against
         the full $\\alpha$.
         """
-    )
+)
