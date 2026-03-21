@@ -80,5 +80,5 @@ stages:
       - data/processed/conformal.pkl
       - data/processed/conformal_intervals.csv
     metrics:
-      - data/processed/metrics.json:
+      - metrics.json:
           cache: false
