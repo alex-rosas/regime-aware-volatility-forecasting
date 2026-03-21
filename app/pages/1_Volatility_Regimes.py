@@ -16,7 +16,7 @@ st.divider()
 
 fig = FIG_DIR / "01_vol_regimes.png"
 if fig.exists():
-    st.image(str(fig), use_container_width=True)
+    st.image(str(fig), use_column_width=True)
 else:
     st.warning("Figure not found. Run `dvc repro build_figures`.")
 
@@ -77,6 +77,6 @@ st.caption(
 )
 shap_fig = FIG_DIR / "07_shap.png"
 if shap_fig.exists():
-    st.image(str(shap_fig), use_container_width=True)
+    st.image(str(shap_fig), use_column_width=True)
 else:
     st.warning("`07_shap.png` not found. Run `dvc repro build_figures`.")

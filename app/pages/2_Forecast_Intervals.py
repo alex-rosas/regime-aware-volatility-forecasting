@@ -26,7 +26,7 @@ st.caption(
 
 fig_forecast = FIG_DIR / "02_forecast.png"
 if fig_forecast.exists():
-    st.image(str(fig_forecast), use_container_width=True)
+    st.image(str(fig_forecast), use_column_width=True)
 else:
     st.warning("Figure not found. Run `dvc repro build_figures`.")
 
@@ -58,7 +58,7 @@ coverage = LEVELS[choice]
 
 fig_interval = FIG_DIR / f"03_intervals_{coverage}.png"
 if fig_interval.exists():
-    st.image(str(fig_interval), use_container_width=True)
+    st.image(str(fig_interval), use_column_width=True)
 else:
     st.warning(
         f"Figure `03_intervals_{coverage}.png` not found. "

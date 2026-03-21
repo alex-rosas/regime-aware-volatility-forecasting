@@ -126,6 +126,6 @@ st.divider()
 st.subheader("DVC Pipeline")
 diag = FIG_DIR / "readme" / "pipeline_diagram.png"
 if diag.exists():
-    st.image(str(diag), use_container_width=True)
+    st.image(str(diag), use_column_width=True)
 else:
     st.info("Pipeline diagram not built yet.  Run `dvc repro build_figures`.")

@@ -15,7 +15,7 @@ FIG_DIR = ROOT / "assets" / "figures" / "dark"
 def _show(filename: str, caption: str = "") -> None:
     fig = FIG_DIR / filename
     if fig.exists():
-        st.image(str(fig), use_container_width=True)
+        st.image(str(fig), use_column_width=True)
         if caption:
             st.caption(caption)
     else:
