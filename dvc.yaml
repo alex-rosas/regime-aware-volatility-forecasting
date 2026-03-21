@@ -66,6 +66,7 @@ stages:
       - data/processed/hybrid_model.pkl
       - data/processed/hybrid_predictions.csv
       - data/processed/hybrid_val_predictions.csv
+      - data/processed/shap_importance.csv
 
   fit_conformal:
     cmd: python stages/07_fit_conformal.py
@@ -111,6 +112,7 @@ stages:
       - data/processed/garch_egarch_volatilities.csv
       - data/processed/hybrid_predictions.csv
       - data/processed/walkforward_predictions.csv
+      - data/processed/shap_importance.csv
       - stages/09_build_figures.py
       - src/dark_viz.py
     params:

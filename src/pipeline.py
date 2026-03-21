@@ -317,6 +317,18 @@ def step_fit_hybrid(
             'y_pred_hybrid' : hybrid.predict(X_val),
         }, index=y_val.index).to_csv(tmp)
 
+    # save SHAP feature importances (mean |SHAP| on test set)
+    import shap as _shap
+    shap_vals = hybrid.shap_values(X_test)
+    shap_importance = pd.DataFrame({
+        'feature'       : hybrid.feature_names_,
+        'mean_abs_shap' : np.abs(shap_vals.values).mean(axis=0),
+    }).sort_values('mean_abs_shap', ascending=False).reset_index(drop=True)
+    with atomic_write(ROOT / 'data/processed/shap_importance.csv') as tmp:
+        shap_importance.to_csv(tmp, index=False)
+    logger.info(f'[6/7] Top feature: {shap_importance.iloc[0]["feature"]} '
+                f'(mean |SHAP|={shap_importance.iloc[0]["mean_abs_shap"]:.6f})')
+
     # --- metrics -----------------------------------------------------------
     y_true = y_test.values
 
@@ -668,6 +680,7 @@ def step_build_figures() -> None:
         dark/04_walkforward.png     — walk-forward out-of-sample predictions
         dark/05_kupiec.png          — empirical upper violation rate vs asymmetric target
         dark/06_regime_coverage.png — per-regime coverage gap bar chart
+        dark/07_shap.png            — SHAP mean |value| feature importance bar chart
         readme/hero.png             — wide 2-panel composite for README header
         readme/pipeline_diagram.png — DVC stage flow diagram
     """
@@ -713,6 +726,7 @@ def step_build_figures() -> None:
         pd.read_csv(wf_path, index_col='Date', parse_dates=True)
         if wf_path.exists() else None
     )
+    shap_df = pd.read_csv(ROOT / 'data/processed/shap_importance.csv')
 
     regimes_test = regimes_full.reindex(intervals.index)
 
@@ -869,6 +883,42 @@ def step_build_figures() -> None:
     ax.set_ylabel('Empirical viol. rate − target')
     savefig(fig, OUT_DARK / '06_regime_coverage.png')
     logger.info('[FIG] 06_regime_coverage.png')
+
+    # ------------------------------------------------------------------
+    # Fig 7 — SHAP feature importance bar chart
+    # ------------------------------------------------------------------
+    features   = shap_df['feature'].tolist()
+    importances = shap_df['mean_abs_shap'].tolist()
+
+    # highlight the top feature (expected: regime) in HYBRID orange
+    bar_colours = [C.HYBRID if i == 0 else C.GARCH for i in range(len(features))]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    y_pos   = np.arange(len(features))
+    ax.barh(y_pos, importances, color=bar_colours, alpha=0.80, height=0.6)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(features, fontsize=10)
+    ax.invert_yaxis()   # most important at top
+    ax.set_xlabel('Mean |SHAP value|')
+    ax.set_title('SHAP Feature Importance — XGBoost Hybrid')
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.4f}'))
+
+    # annotate value on each bar
+    for i, val in enumerate(importances):
+        ax.text(val + max(importances) * 0.01, i, f'{val:.5f}',
+                va='center', fontsize=8.5, color=C.TEXT)
+
+    # legend: regime bar is highlighted
+    from matplotlib.patches import Patch
+    ax.legend(
+        handles=[
+            Patch(color=C.HYBRID, alpha=0.8, label='Regime (rank 1)'),
+            Patch(color=C.GARCH,  alpha=0.8, label='Other features'),
+        ],
+        loc='lower right', framealpha=0.3,
+    )
+    savefig(fig, OUT_DARK / '07_shap.png')
+    logger.info('[FIG] 07_shap.png')
 
     # ------------------------------------------------------------------
     # README hero — 2-panel composite
