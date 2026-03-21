@@ -596,6 +596,321 @@ def step_walk_forward(
 
 
 # ---------------------------------------------------------------------------
+# figure building
+# ---------------------------------------------------------------------------
+
+def _build_pipeline_diagram(path: Path) -> None:
+    """
+    Draw the nine DVC pipeline stages as a horizontal flow diagram.
+    Imports matplotlib locally — only called from step_build_figures.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    import matplotlib.colors as mcolors
+    from src.dark_viz import C, savefig
+
+    stages = [
+        ('01\nLoad Data',     C.GARCH),
+        ('02\nReturns',       C.GARCH),
+        ('03\nGARCH/EGARCH',  C.GARCH),
+        ('04\nHMM',           C.MED),
+        ('05\nFeatures',      C.MED),
+        ('06\nHybrid XGB',    C.HYBRID),
+        ('07\nConformal',     C.HYBRID),
+        ('08\nWalk-Forward',  C.HYBRID),
+        ('09\nFigures',       C.LOW),
+    ]
+
+    fig, ax = plt.subplots(figsize=(16, 2.8))
+    ax.set_xlim(-0.6, len(stages) - 0.4)
+    ax.set_ylim(-0.8, 0.8)
+    ax.axis('off')
+
+    box_w, box_h = 0.72, 0.48
+
+    for i, (label, colour) in enumerate(stages):
+        face_rgba = (*mcolors.to_rgb(colour), 0.18)
+        rect = mpatches.FancyBboxPatch(
+            (i - box_w / 2, -box_h / 2), box_w, box_h,
+            boxstyle='round,pad=0.04',
+            linewidth=1.2,
+            edgecolor=colour,
+            facecolor=face_rgba,
+        )
+        ax.add_patch(rect)
+        ax.text(i, 0, label, ha='center', va='center',
+                color=C.TEXT, fontsize=8.5, fontweight='bold',
+                linespacing=1.3)
+        if i < len(stages) - 1:
+            ax.annotate(
+                '', xy=(i + box_w / 2 + 0.04, 0),
+                xytext=(i + box_w / 2 - 0.04 + (1 - box_w), 0),
+                arrowprops=dict(arrowstyle='->', color=C.MUTED, lw=1.1),
+            )
+
+    ax.set_title('DVC Pipeline — volatility_regimes', color=C.TEXT, fontsize=11, pad=8)
+    savefig(fig, path)
+
+
+def step_build_figures() -> None:
+    """
+    Build all pre-rendered figures for the Streamlit app and README.
+
+    Reads from data/processed/ — must be called after step_fit_conformal
+    and step_walk_forward.
+
+    Saves to assets/figures/:
+        dark/01_vol_regimes.png     — full-period GARCH/EGARCH vol + regime bands
+        dark/02_forecast.png        — test-set hybrid vs benchmarks
+        dark/03_intervals_80.png    — conformal bands at 80%
+        dark/03_intervals_90.png    — conformal bands at 90%
+        dark/03_intervals_95.png    — conformal bands at 95%
+        dark/04_walkforward.png     — walk-forward out-of-sample predictions
+        dark/05_kupiec.png          — empirical upper violation rate vs asymmetric target
+        dark/06_regime_coverage.png — per-regime coverage gap bar chart
+        readme/hero.png             — wide 2-panel composite for README header
+        readme/pipeline_diagram.png — DVC stage flow diagram
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    from src.dark_viz import (
+        apply_style, C, REGIME_COLOURS, regime_band_ax, savefig,
+    )
+
+    t0     = time.time()
+    params = _load_params()
+    alpha_levels = params['conformal']['alpha_levels']
+    phi          = params['conformal']['asymmetry']
+
+    logger.info('[FIG] Building figures...')
+    apply_style()
+
+    OUT_DARK   = ROOT / 'assets/figures/dark'
+    OUT_README = ROOT / 'assets/figures/readme'
+
+    # ------------------------------------------------------------------
+    # load processed artifacts
+    # ------------------------------------------------------------------
+    intervals = pd.read_csv(
+        ROOT / 'data/processed/conformal_intervals.csv',
+        index_col='Date', parse_dates=True,
+    )
+    regimes_full = pd.read_csv(
+        ROOT / 'data/processed/hmm_regimes.csv',
+        index_col='Date', parse_dates=True,
+    )['regime']
+    vols_full = pd.read_csv(
+        ROOT / 'data/processed/garch_egarch_volatilities.csv',
+        index_col='Date', parse_dates=True,
+    )
+    predictions = pd.read_csv(
+        ROOT / 'data/processed/hybrid_predictions.csv',
+        index_col='Date', parse_dates=True,
+    )
+
+    wf_path = ROOT / 'data/processed/walkforward_predictions.csv'
+    wf_df   = (
+        pd.read_csv(wf_path, index_col='Date', parse_dates=True)
+        if wf_path.exists() else None
+    )
+
+    regimes_test = regimes_full.reindex(intervals.index)
+
+    y_true_test   = predictions['y_true'].values
+    y_pred_hybrid = predictions['y_pred_hybrid'].values
+    y_pred_garch  = predictions['y_pred_garch'].values
+    y_pred_egarch = predictions['y_pred_egarch'].values
+    dates_test    = predictions.index
+    y_true_int    = intervals['y_true'].values
+
+    # ------------------------------------------------------------------
+    # Fig 1 — full-period conditional volatility + regime bands
+    # ------------------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(14, 5))
+    regime_band_ax(ax, regimes_full)
+    ax.plot(vols_full.index, vols_full['sigma_garch_ann'],
+            color=C.GARCH,  lw=0.9, label='GARCH (ann.)')
+    ax.plot(vols_full.index, vols_full['sigma_egarch_ann'],
+            color=C.EGARCH, lw=0.9, label='EGARCH (ann.)', alpha=0.85)
+
+    import matplotlib.patches as mpatches
+    handles = [
+        plt.Line2D([0], [0], color=C.GARCH,  lw=1.5, label='GARCH'),
+        plt.Line2D([0], [0], color=C.EGARCH, lw=1.5, label='EGARCH'),
+        mpatches.Patch(color=C.LOW,  alpha=0.6, label='Low vol'),
+        mpatches.Patch(color=C.MED,  alpha=0.6, label='Medium vol'),
+        mpatches.Patch(color=C.HIGH, alpha=0.6, label='High vol'),
+    ]
+    ax.legend(handles=handles, loc='upper right', ncol=3, framealpha=0.3)
+    ax.set_title('Conditional Volatility — Full Period with HMM Regime Bands')
+    ax.set_ylabel('Annualised Volatility')
+    savefig(fig, OUT_DARK / '01_vol_regimes.png')
+    logger.info('[FIG] 01_vol_regimes.png')
+
+    # ------------------------------------------------------------------
+    # Fig 2 — test-set forecast comparison
+    # ------------------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(14, 5))
+    regime_band_ax(ax, regimes_test)
+    ax.plot(dates_test, y_true_test,   color=C.ACTUAL, lw=0.7, alpha=0.8, label='Realised')
+    ax.plot(dates_test, y_pred_hybrid, color=C.HYBRID, lw=1.0,            label='Hybrid XGBoost')
+    ax.plot(dates_test, y_pred_garch,  color=C.GARCH,  lw=0.8, alpha=0.8, label='GARCH')
+    ax.plot(dates_test, y_pred_egarch, color=C.EGARCH, lw=0.8, alpha=0.8, label='EGARCH')
+    ax.set_title('Test-Set Volatility Forecast — Hybrid vs Benchmarks')
+    ax.set_ylabel('Daily Volatility')
+    ax.legend(ncol=4, framealpha=0.3)
+    savefig(fig, OUT_DARK / '02_forecast.png')
+    logger.info('[FIG] 02_forecast.png')
+
+    # ------------------------------------------------------------------
+    # Fig 3 — conformal intervals (one per alpha level)
+    # ------------------------------------------------------------------
+    for alpha in alpha_levels:
+        coverage  = int((1 - alpha) * 100)
+        lower     = intervals[f'lower_{coverage}'].values
+        upper     = intervals[f'upper_{coverage}'].values
+        fig, ax   = plt.subplots(figsize=(14, 5))
+        regime_band_ax(ax, regimes_test, alpha=0.12)
+        ax.fill_between(intervals.index, lower, upper,
+                        color=C.BAND, alpha=0.18, label=f'{coverage}% interval')
+        ax.plot(intervals.index, upper,      color=C.UPPER,  lw=0.8, alpha=0.7)
+        ax.plot(intervals.index, lower,      color=C.LOWER,  lw=0.8, alpha=0.7)
+        ax.plot(intervals.index, y_true_int, color=C.ACTUAL, lw=0.6, alpha=0.8,
+                label='Realised')
+        ax.set_title(
+            f'Asymmetric Conformal Intervals — {coverage}%  '
+            f'(φ={phi},  α_upper={alpha * phi:.1%})'
+        )
+        ax.set_ylabel('Daily Volatility')
+        ax.legend(ncol=3, framealpha=0.3)
+        savefig(fig, OUT_DARK / f'03_intervals_{coverage}.png')
+        logger.info(f'[FIG] 03_intervals_{coverage}.png')
+
+    # ------------------------------------------------------------------
+    # Fig 4 — walk-forward validation
+    # ------------------------------------------------------------------
+    if wf_df is not None:
+        regimes_wf = regimes_full.reindex(wf_df.index)
+        fig, ax    = plt.subplots(figsize=(14, 5))
+        regime_band_ax(ax, regimes_wf)
+        ax.plot(wf_df.index, wf_df['y_true'],        color=C.ACTUAL, lw=0.7, alpha=0.8, label='Realised')
+        ax.plot(wf_df.index, wf_df['y_pred_hybrid'], color=C.HYBRID, lw=1.0,            label='Hybrid XGBoost')
+        ax.plot(wf_df.index, wf_df['y_pred_garch'],  color=C.GARCH,  lw=0.8, alpha=0.8, label='GARCH')
+
+        step_size = params['walkforward']['step_size']
+        for i in range(step_size, len(wf_df), step_size):
+            ax.axvline(wf_df.index[i], color=C.MUTED, lw=0.8, linestyle=':', alpha=0.6)
+
+        ax.set_title('Walk-Forward Validation — Expanding Window (XGBoost)')
+        ax.set_ylabel('Daily Volatility')
+        ax.legend(ncol=4, framealpha=0.3)
+        savefig(fig, OUT_DARK / '04_walkforward.png')
+        logger.info('[FIG] 04_walkforward.png')
+
+    # ------------------------------------------------------------------
+    # Fig 5 — Kupiec POF violation rates vs asymmetric targets
+    # ------------------------------------------------------------------
+    coverages, emp_rates, targets = [], [], []
+    for alpha in alpha_levels:
+        coverage = int((1 - alpha) * 100)
+        upper    = intervals[f'upper_{coverage}'].values
+        coverages.append(f'{coverage}%')
+        emp_rates.append(float(np.mean(y_true_int > upper)))
+        targets.append(alpha * phi)
+
+    x          = np.arange(len(coverages))
+    bar_colours = [C.NEGATIVE if e > t else C.POSITIVE
+                   for e, t in zip(emp_rates, targets)]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(x, emp_rates, color=bar_colours, alpha=0.75, width=0.5,
+           label='Empirical upper viol. rate')
+    for xi, t in zip(x, targets):
+        ax.plot([xi - 0.25, xi + 0.25], [t, t], color=C.ACTUAL, lw=2.0, zorder=5)
+    ax.scatter(x, targets, color=C.ACTUAL, s=50, zorder=6,
+               label=f'Target α_upper  (φ={phi})')
+    ax.set_xticks(x)
+    ax.set_xticklabels(coverages)
+    ax.set_title('Kupiec POF — Upper Violation Rate vs Asymmetric Target')
+    ax.set_ylabel('Upper Violation Rate')
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.1%}'))
+    ax.legend(framealpha=0.3)
+    savefig(fig, OUT_DARK / '05_kupiec.png')
+    logger.info('[FIG] 05_kupiec.png')
+
+    # ------------------------------------------------------------------
+    # Fig 6 — regime-conditioned coverage gap (90% interval)
+    # ------------------------------------------------------------------
+    alpha_upper_90 = 0.10 * phi
+    regime_labels  = ['Low', 'Medium', 'High']
+    gaps, ns       = [], []
+
+    for k in range(3):
+        mask = regimes_test.values == k
+        if mask.sum() == 0:
+            gaps.append(0.0); ns.append(0); continue
+        viol = float(np.mean(y_true_int[mask] > intervals['upper_90'].values[mask]))
+        gaps.append(viol - alpha_upper_90)
+        ns.append(int(mask.sum()))
+
+    x          = np.arange(3)
+    bar_colours = [C.NEGATIVE if g > 0 else C.POSITIVE for g in gaps]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(x, gaps, color=bar_colours, alpha=0.75, width=0.5)
+    ax.axhline(0, color=C.MUTED, lw=1.0, linestyle='--')
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'{l}\n(n={n})' for l, n in zip(regime_labels, ns)])
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:+.1%}'))
+    ax.set_title(
+        f'Regime Coverage Gap vs {alpha_upper_90:.0%} Target  '
+        f'(90% interval, φ={phi})'
+    )
+    ax.set_ylabel('Empirical viol. rate − target')
+    savefig(fig, OUT_DARK / '06_regime_coverage.png')
+    logger.info('[FIG] 06_regime_coverage.png')
+
+    # ------------------------------------------------------------------
+    # README hero — 2-panel composite
+    # ------------------------------------------------------------------
+    apply_style(font_scale=1.1)
+    fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(18, 5))
+
+    regime_band_ax(ax_l, regimes_test)
+    ax_l.plot(dates_test, y_true_test,   color=C.ACTUAL, lw=0.7, alpha=0.8, label='Realised')
+    ax_l.plot(dates_test, y_pred_hybrid, color=C.HYBRID, lw=1.0,            label='Hybrid XGBoost')
+    ax_l.plot(dates_test, y_pred_garch,  color=C.GARCH,  lw=0.8, alpha=0.8, label='GARCH')
+    ax_l.set_title('Volatility Forecast — Test Set')
+    ax_l.set_ylabel('Daily Volatility')
+    ax_l.legend(ncol=3, framealpha=0.3, fontsize=9)
+
+    lower_90 = intervals['lower_90'].values
+    upper_90 = intervals['upper_90'].values
+    regime_band_ax(ax_r, regimes_test, alpha=0.12)
+    ax_r.fill_between(intervals.index, lower_90, upper_90,
+                      color=C.BAND, alpha=0.18, label='90% interval')
+    ax_r.plot(intervals.index, upper_90,    color=C.UPPER,  lw=0.8, alpha=0.7)
+    ax_r.plot(intervals.index, lower_90,    color=C.LOWER,  lw=0.8, alpha=0.7)
+    ax_r.plot(intervals.index, y_true_int,  color=C.ACTUAL, lw=0.6, alpha=0.8,
+              label='Realised')
+    ax_r.set_title(f'Asymmetric Conformal Intervals — 90%  (φ={phi})')
+    ax_r.set_ylabel('Daily Volatility')
+    ax_r.legend(ncol=3, framealpha=0.3, fontsize=9)
+
+    savefig(fig, OUT_README / 'hero.png')
+    logger.info('[FIG] readme/hero.png')
+
+    # ------------------------------------------------------------------
+    # README pipeline diagram
+    # ------------------------------------------------------------------
+    apply_style()
+    _build_pipeline_diagram(OUT_README / 'pipeline_diagram.png')
+    logger.info('[FIG] readme/pipeline_diagram.png')
+
+    logger.info(f'[FIG] All figures built  ({time.time() - t0:.1f}s)')
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
@@ -615,6 +930,7 @@ def run_pipeline_end_to_end() -> None:
         6. Fit hybrid model
         7. Calibrate conformal predictor
         8. Walk-forward validation
+        9. Build figures
     """
     setup_logging()
     t_total = time.time()
@@ -622,14 +938,15 @@ def run_pipeline_end_to_end() -> None:
     logger.info('VolatilityRegimes — Full Pipeline')
     logger.info('=' * 60)
 
-    prices, macro           = step_load_data()
-    returns                 = step_compute_returns(prices)
-    garch, egarch           = step_fit_garch(returns)
-    hmm                     = step_fit_hmm(returns)
+    prices, macro        = step_load_data()
+    returns              = step_compute_returns(prices)
+    garch, egarch        = step_fit_garch(returns)
+    hmm                  = step_fit_hmm(returns)
     step_export_features(returns, garch, egarch, hmm)
-    hybrid, X_val, y_val    = step_fit_hybrid(returns, macro)
-    cp                      = step_fit_conformal(hybrid)
+    hybrid, X_val, y_val = step_fit_hybrid(returns, macro)
+    cp                   = step_fit_conformal(hybrid)
     step_walk_forward(returns, macro)
+    step_build_figures()
 
     logger.info('=' * 60)
     logger.info(f'Pipeline complete — total time: {time.time() - t_total:.1f}s')

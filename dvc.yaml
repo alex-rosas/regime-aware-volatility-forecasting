@@ -102,3 +102,24 @@ stages:
     metrics:
       - metrics.json:
           cache: false
+
+  build_figures:
+    cmd: python stages/09_build_figures.py
+    deps:
+      - data/processed/conformal_intervals.csv
+      - data/processed/hmm_regimes.csv
+      - data/processed/garch_egarch_volatilities.csv
+      - data/processed/hybrid_predictions.csv
+      - data/processed/walkforward_predictions.csv
+      - stages/09_build_figures.py
+      - src/dark_viz.py
+    params:
+      - params.yaml:
+          - conformal
+          - hmm
+          - walkforward
+    outs:
+      - assets/figures/dark:
+          cache: false
+      - assets/figures/readme:
+          cache: false
