@@ -150,7 +150,7 @@ packaging==23.2
 pandas @ file:///Users/runner/miniforge3/conda-bld/pandas_1715897646986/work
 pandocfilters==1.5.1
 parso==0.8.6
-pathspec==1.0.4
+pathspec==0.12.1
 patsy @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_patsy_1760998269/work
 pexpect==4.9.0
 pillow==10.4.0
