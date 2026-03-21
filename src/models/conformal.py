@@ -344,3 +344,243 @@ class ConformalPredictor:
             f'n_cal={self.n_cal_}, '
             f'q_90={self.quantile(0.10):.6f})'
         )
+
+
+# ---------------------------------------------------------------------------
+# Asymmetric conformal predictor
+# ---------------------------------------------------------------------------
+
+class AsymmetricConformalPredictor(ConformalPredictor):
+    """
+    Asymmetric split conformal predictor for volatility forecasting.
+
+    Extends ConformalPredictor by replacing absolute residuals with
+    signed residuals, then splitting the alpha miscoverage budget
+    asymmetrically between the lower and upper tails.
+
+    Motivation
+    ----------
+    In volatility forecasting, the cost of underestimating risk (actual
+    volatility exceeds the upper bound) is far greater than the cost of
+    overestimating it (actual falls below the lower bound). The symmetric
+    predictor allocates equal strictness to both sides, which is
+    suboptimal from a risk management perspective.
+
+    The asymmetry parameter phi in (0, 1) controls how the alpha budget
+    is split:
+
+        alpha_upper = alpha * phi        (upper tail — strict)
+        alpha_lower = alpha * (1 - phi)  (lower tail — relaxed)
+
+    With phi = 0.7 and alpha = 0.10:
+        alpha_upper = 0.07  → upper bound wrong only 7% of the time
+        alpha_lower = 0.03  → lower bound wrong only 3% of the time
+        total miscoverage  = 10%  →  90% coverage maintained ✓
+
+    The symmetric case (phi = 0.5) exactly reproduces ConformalPredictor.
+
+    Nonconformity scores
+    --------------------
+    Signed residuals are used instead of absolute residuals:
+
+        r_i = y_true_i − y_pred_i
+
+    Positive r_i means the model underestimated (dangerous).
+    Negative r_i means the model overestimated (less costly).
+
+    Prediction interval
+    -------------------
+        q_lower = Quantile(r, alpha_lower)       — negative value
+        q_upper = Quantile(r, 1 − alpha_upper)   — positive value
+
+        lower = y_pred + q_lower
+        upper = y_pred + q_upper
+
+    Parameters
+    ----------
+    asymmetry : float
+        Fraction of the alpha budget allocated to the upper tail.
+        Must be in (0, 1). Default 0.7 allocates 70% of miscoverage
+        tolerance to the upper bound (risk-management oriented).
+        Use 0.5 to recover fully symmetric intervals.
+    """
+
+    def __init__(self, asymmetry: float = 0.7) -> None:
+        super().__init__()
+        if not 0 < asymmetry < 1:
+            raise ValueError(f'asymmetry must be in (0, 1), got {asymmetry}')
+        self.asymmetry              = asymmetry
+        self.cal_signed_residuals_  = None
+
+    # ------------------------------------------------------------------
+    # calibration
+    # ------------------------------------------------------------------
+
+    def calibrate(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+    ) -> 'AsymmetricConformalPredictor':
+        """
+        Compute and store signed nonconformity scores.
+
+        Also calls the parent calibrate() to retain absolute residuals
+        for backward-compatible methods (coverage, coverage_summary
+        from parent are overridden below).
+
+        Parameters
+        ----------
+        y_true : np.ndarray  — realised values on calibration set.
+        y_pred : np.ndarray  — point forecast values on calibration set.
+
+        Returns
+        -------
+        self
+        """
+        super().calibrate(y_true, y_pred)
+        self.cal_signed_residuals_ = (
+            np.asarray(y_true) - np.asarray(y_pred)
+        )
+        return self
+
+    # ------------------------------------------------------------------
+    # quantiles
+    # ------------------------------------------------------------------
+
+    def quantile_lower(self, alpha: float) -> float:
+        """
+        Lower shift for the prediction interval.
+
+        Returns the alpha_lower quantile of signed residuals — a negative
+        value that shifts the lower bound below the point forecast.
+
+        Parameters
+        ----------
+        alpha : float — total significance level.
+
+        Returns
+        -------
+        float — negative scalar (lower bound shift).
+        """
+        self._check_calibrated()
+        alpha_lower = alpha * (1 - self.asymmetry)
+        return float(np.quantile(self.cal_signed_residuals_, alpha_lower))
+
+    def quantile_upper(self, alpha: float) -> float:
+        """
+        Upper shift for the prediction interval.
+
+        Returns the (1 - alpha_upper) quantile of signed residuals —
+        a positive value that shifts the upper bound above the point
+        forecast.
+
+        Parameters
+        ----------
+        alpha : float — total significance level.
+
+        Returns
+        -------
+        float — positive scalar (upper bound shift).
+        """
+        self._check_calibrated()
+        alpha_upper = alpha * self.asymmetry
+        return float(np.quantile(self.cal_signed_residuals_, 1 - alpha_upper))
+
+    # ------------------------------------------------------------------
+    # prediction
+    # ------------------------------------------------------------------
+
+    def predict(
+        self,
+        y_pred: np.ndarray,
+        alpha: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute asymmetric prediction intervals around a point forecast.
+
+        Parameters
+        ----------
+        y_pred : np.ndarray — point forecast values on the test set.
+        alpha  : float      — total significance level.
+
+        Returns
+        -------
+        lower : np.ndarray — lower bound (y_pred + q_lower).
+        upper : np.ndarray — upper bound (y_pred + q_upper).
+        """
+        self._check_calibrated()
+        y_pred  = np.asarray(y_pred)
+        q_lower = self.quantile_lower(alpha)
+        q_upper = self.quantile_upper(alpha)
+        return y_pred + q_lower, y_pred + q_upper
+
+    # ------------------------------------------------------------------
+    # coverage evaluation
+    # ------------------------------------------------------------------
+
+    def coverage_summary(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        alphas: list[float] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Return a summary DataFrame showing total, lower, and upper
+        coverage — including the asymmetric violation split.
+
+        Parameters
+        ----------
+        y_true : np.ndarray — realised values on the test set.
+        y_pred : np.ndarray — point forecast values on the test set.
+        alphas : list[float] or None — significance levels.
+
+        Returns
+        -------
+        pd.DataFrame with columns:
+            Empirical Coverage, Lower Violations, Upper Violations,
+            Gap, Interval Width
+        """
+        self._check_calibrated()
+        if alphas is None:
+            alphas = [0.20, 0.10, 0.05]
+
+        y_true = np.asarray(y_true)
+        rows   = []
+
+        for alpha in alphas:
+            nominal  = 1 - alpha
+            lower, upper = self.predict(y_pred, alpha)
+
+            total_cov        = float(np.mean((y_true >= lower) & (y_true <= upper)))
+            lower_violations = float(np.mean(y_true < lower))
+            upper_violations = float(np.mean(y_true > upper))
+            width            = self.quantile_upper(alpha) - self.quantile_lower(alpha)
+
+            rows.append({
+                'Nominal Coverage'  : f'{nominal:.0%}',
+                'Empirical Coverage': f'{total_cov:.2%}',
+                'Lower Violations'  : f'{lower_violations:.2%}',
+                'Upper Violations'  : f'{upper_violations:.2%}',
+                'Gap'               : f'{nominal - total_cov:+.2%}',
+                'Interval Width'    : f'{width:.6f}',
+            })
+
+        return pd.DataFrame(rows).set_index('Nominal Coverage')
+
+    # ------------------------------------------------------------------
+    # dunder
+    # ------------------------------------------------------------------
+
+    def __repr__(self) -> str:
+        if self.cal_signed_residuals_ is None:
+            return (
+                f'AsymmetricConformalPredictor('
+                f'asymmetry={self.asymmetry}, '
+                f'status=\'uncalibrated\')'
+            )
+        return (
+            f'AsymmetricConformalPredictor('
+            f'n_cal={self.n_cal_}, '
+            f'asymmetry={self.asymmetry}, '
+            f'q_upper_90={self.quantile_upper(0.10):.6f})'
+        )

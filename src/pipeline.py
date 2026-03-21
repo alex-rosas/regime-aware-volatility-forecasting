@@ -60,7 +60,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.data.describe import compute_returns
 from src.logger import get_logger, setup_logging
-from src.models.conformal import ConformalPredictor
+from src.models.conformal import AsymmetricConformalPredictor, ConformalPredictor
 from src.models.garch import VolatilityModel
 from src.models.hmm import RegimeHMM
 from src.models.hybrid import HybridVolatilityModel, diebold_mariano, qlike
@@ -387,7 +387,8 @@ def step_fit_conformal(
         index_col='Date', parse_dates=True
     )
 
-    cp = ConformalPredictor()
+    asymmetry = params['conformal']['asymmetry']
+    cp = AsymmetricConformalPredictor(asymmetry=asymmetry)
     cp.calibrate(
         y_true = val_data['y_true'].values,
         y_pred = val_data['y_pred_hybrid'].values,

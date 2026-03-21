@@ -17,6 +17,7 @@ data:
 
 conformal:
   alpha_levels: [0.20, 0.10, 0.05]
+  asymmetry: 0.7    # fraction of alpha budget on upper tail (risk-management oriented)
 
 walkforward:
   n_splits: 5       # number of expanding folds
