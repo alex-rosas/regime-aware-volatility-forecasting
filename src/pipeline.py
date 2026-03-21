@@ -46,6 +46,7 @@ Steps
 All artifacts are saved to data/processed/.
 """
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -360,9 +361,16 @@ def step_fit_conformal(
 
     cp.save(ROOT / 'data/processed/conformal.pkl')
 
+    metrics = {}
     for alpha in alpha_levels:
-        cov = cp.coverage(y_true_test, y_pred_test, alpha)
+        cov     = cp.coverage(y_true_test, y_pred_test, alpha)
+        key     = f'coverage_{int((1 - alpha) * 100)}'
+        metrics[key] = round(cov, 4)
         logger.info(f'[7/7] Coverage {1 - alpha:.0%}: {cov:.2%}')
+
+    with open(ROOT / 'data/processed/metrics.json', 'w') as f:
+        json.dump(metrics, f, indent=2)
+    logger.info(f'[7/7] Metrics saved → data/processed/metrics.json')
 
     logger.info(f'[7/7] Done  ({time.time() - t0:.1f}s)')
     return cp
