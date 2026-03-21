@@ -19,19 +19,23 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import pandas as pd
+import logging
 from src.logger import setup_logging
 from src.pipeline import step_fit_hybrid
 
 setup_logging()
+logger = logging.getLogger(__name__)
 
-returns = pd.read_csv(
-    ROOT / 'data/processed/returns.csv',
-    index_col='Date', parse_dates=True
-).squeeze()
-
-macro = pd.read_csv(
-    ROOT / 'data/processed/macro.csv',
-    index_col='Date', parse_dates=True
-)
-
-step_fit_hybrid(returns, macro)
+try:
+    returns = pd.read_csv(
+        ROOT / 'data/processed/returns.csv',
+        index_col='Date', parse_dates=True
+    ).squeeze()
+    macro = pd.read_csv(
+        ROOT / 'data/processed/macro.csv',
+        index_col='Date', parse_dates=True
+    )
+    step_fit_hybrid(returns, macro)
+except Exception as e:
+    logger.error(f'Stage fit_hybrid failed: {e}', exc_info=True)
+    raise SystemExit(1)

@@ -17,20 +17,24 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import pandas as pd
+import logging
 from src.logger import setup_logging
 from src.models.garch import VolatilityModel
 from src.models.hmm import RegimeHMM
 from src.pipeline import step_export_features
 
 setup_logging()
+logger = logging.getLogger(__name__)
 
-returns = pd.read_csv(
-    ROOT / 'data/processed/returns.csv',
-    index_col='Date', parse_dates=True
-).squeeze()
-
-garch  = VolatilityModel.load(ROOT / 'data/processed/garch.pkl')
-egarch = VolatilityModel.load(ROOT / 'data/processed/egarch.pkl')
-hmm    = RegimeHMM.load(ROOT / 'data/processed/hmm.pkl')
-
-step_export_features(returns, garch, egarch, hmm)
+try:
+    returns = pd.read_csv(
+        ROOT / 'data/processed/returns.csv',
+        index_col='Date', parse_dates=True
+    ).squeeze()
+    garch  = VolatilityModel.load(ROOT / 'data/processed/garch.pkl')
+    egarch = VolatilityModel.load(ROOT / 'data/processed/egarch.pkl')
+    hmm    = RegimeHMM.load(ROOT / 'data/processed/hmm.pkl')
+    step_export_features(returns, garch, egarch, hmm)
+except Exception as e:
+    logger.error(f'Stage export_features failed: {e}', exc_info=True)
+    raise SystemExit(1)

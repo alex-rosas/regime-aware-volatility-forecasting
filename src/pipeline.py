@@ -64,6 +64,7 @@ from src.models.conformal import ConformalPredictor
 from src.models.garch import VolatilityModel
 from src.models.hmm import RegimeHMM
 from src.models.hybrid import HybridVolatilityModel, diebold_mariano, qlike
+from src.utils import atomic_write
 
 logger = get_logger(__name__)
 
@@ -103,8 +104,10 @@ def step_load_data() -> tuple[pd.Series, pd.DataFrame]:
     macro.index.name = 'Date'
     macro = macro[['VIXCLS', 'T10Y2Y']]
 
-    prices.to_csv(ROOT / 'data/processed/prices.csv')
-    macro.to_csv(ROOT / 'data/processed/macro.csv')
+    with atomic_write(ROOT / 'data/processed/prices.csv') as tmp:
+        prices.to_csv(tmp)
+    with atomic_write(ROOT / 'data/processed/macro.csv') as tmp:
+        macro.to_csv(tmp)
 
     logger.info(f'[1/7] Done — prices: {len(prices):,} rows, '
                 f'macro: {len(macro):,} rows  ({time.time() - t0:.1f}s)')
@@ -124,7 +127,8 @@ def step_compute_returns(prices: pd.Series) -> pd.Series:
 
     returns = compute_returns(prices)
 
-    returns.to_csv(ROOT / 'data/processed/returns.csv')
+    with atomic_write(ROOT / 'data/processed/returns.csv') as tmp:
+        returns.to_csv(tmp)
 
     logger.info(f'[2/7] Done — {len(returns):,} observations  '
                 f'({returns.index[0].date()} → {returns.index[-1].date()})  '
@@ -148,8 +152,10 @@ def step_fit_garch(returns: pd.Series) -> tuple[VolatilityModel, VolatilityModel
     garch  = VolatilityModel('GARCH').fit(returns)
     egarch = VolatilityModel('EGARCH').fit(returns)
 
-    garch.save(ROOT  / 'data/processed/garch.pkl')
-    egarch.save(ROOT / 'data/processed/egarch.pkl')
+    with atomic_write(ROOT / 'data/processed/garch.pkl') as tmp:
+        garch.save(tmp)
+    with atomic_write(ROOT / 'data/processed/egarch.pkl') as tmp:
+        egarch.save(tmp)
 
     gs = garch.summary()
     es = egarch.summary()
@@ -192,7 +198,8 @@ def step_fit_hmm(returns: pd.Series) -> RegimeHMM:
     regimes = hmm.predict(returns)
     logger.info(f'[4/7] Regime counts: {regimes.value_counts().sort_index().to_dict()}')
 
-    hmm.save(ROOT / 'data/processed/hmm.pkl')
+    with atomic_write(ROOT / 'data/processed/hmm.pkl') as tmp:
+        hmm.save(tmp)
 
     return hmm
 
@@ -214,12 +221,14 @@ def step_export_features(
     logger.info('[5/7] Exporting features...')
 
     regimes = hmm.predict(returns)
-    regimes.to_frame('regime').to_csv(ROOT / 'data/processed/hmm_regimes.csv')
+    with atomic_write(ROOT / 'data/processed/hmm_regimes.csv') as tmp:
+        regimes.to_frame('regime').to_csv(tmp)
 
     garch_vol  = garch.conditional_volatility()
     egarch_vol = egarch.conditional_volatility()
     vols       = pd.concat([garch_vol, egarch_vol], axis=1).dropna()
-    vols.to_csv(ROOT / 'data/processed/garch_egarch_volatilities.csv')
+    with atomic_write(ROOT / 'data/processed/garch_egarch_volatilities.csv') as tmp:
+        vols.to_csv(tmp)
 
     logger.info(f'[5/7] hmm_regimes.csv: {len(regimes):,} rows | '
                 f'volatilities.csv: {len(vols):,} rows  ({time.time() - t0:.1f}s)')
@@ -285,25 +294,28 @@ def step_fit_hybrid(
                 f'val RMSE={s["val_rmse"]:.6f}')
 
     # save model
-    hybrid.save(ROOT / 'data/processed/hybrid_model.pkl')
+    with atomic_write(ROOT / 'data/processed/hybrid_model.pkl') as tmp:
+        hybrid.save(tmp)
 
     # save test predictions
     y_pred_hybrid = hybrid.predict(X_test)
     y_pred_garch  = (X_test['sigma_garch_ann']  / np.sqrt(trading_days)).values
     y_pred_egarch = (X_test['sigma_egarch_ann'] / np.sqrt(trading_days)).values
 
-    pd.DataFrame({
-        'y_true'        : y_test.values,
-        'y_pred_hybrid' : y_pred_hybrid,
-        'y_pred_garch'  : y_pred_garch,
-        'y_pred_egarch' : y_pred_egarch,
-    }, index=y_test.index).to_csv(ROOT / 'data/processed/hybrid_predictions.csv')
+    with atomic_write(ROOT / 'data/processed/hybrid_predictions.csv') as tmp:
+        pd.DataFrame({
+            'y_true'        : y_test.values,
+            'y_pred_hybrid' : y_pred_hybrid,
+            'y_pred_garch'  : y_pred_garch,
+            'y_pred_egarch' : y_pred_egarch,
+        }, index=y_test.index).to_csv(tmp)
 
     # save validation predictions for conformal calibration
-    pd.DataFrame({
-        'y_true'        : y_val.values,
-        'y_pred_hybrid' : hybrid.predict(X_val),
-    }, index=y_val.index).to_csv(ROOT / 'data/processed/hybrid_val_predictions.csv')
+    with atomic_write(ROOT / 'data/processed/hybrid_val_predictions.csv') as tmp:
+        pd.DataFrame({
+            'y_true'        : y_val.values,
+            'y_pred_hybrid' : hybrid.predict(X_val),
+        }, index=y_val.index).to_csv(tmp)
 
     # --- metrics -----------------------------------------------------------
     y_true = y_test.values
@@ -334,8 +346,9 @@ def step_fit_hybrid(
         'dm_pval_vs_egarch'     : round(dm_pval_vs_egarch, 4),
     }
 
-    with open(ROOT / 'metrics.json', 'w') as f:
-        json.dump(metrics, f, indent=2)
+    with atomic_write(ROOT / 'metrics.json') as tmp:
+        with open(tmp, 'w') as f:
+            json.dump(metrics, f, indent=2)
     logger.info(
         f'[6/7] RMSE hybrid={rmse_hybrid:.4f} | '
         f'GARCH={rmse_garch:.4f} | '
@@ -391,11 +404,11 @@ def step_fit_conformal(
         conf_cols[f'lower_{coverage}'] = results[key]['lower']
         conf_cols[f'upper_{coverage}'] = results[key]['upper']
 
-    pd.DataFrame(conf_cols, index=test_data.index).to_csv(
-        ROOT / 'data/processed/conformal_intervals.csv'
-    )
+    with atomic_write(ROOT / 'data/processed/conformal_intervals.csv') as tmp:
+        pd.DataFrame(conf_cols, index=test_data.index).to_csv(tmp)
 
-    cp.save(ROOT / 'data/processed/conformal.pkl')
+    with atomic_write(ROOT / 'data/processed/conformal.pkl') as tmp:
+        cp.save(tmp)
 
     # read existing metrics written by step_fit_hybrid and append coverage
     metrics_path = ROOT / 'metrics.json'
@@ -408,8 +421,9 @@ def step_fit_conformal(
         metrics[key] = round(cov, 4)
         logger.info(f'[7/7] Coverage {1 - alpha:.0%}: {cov:.2%}')
 
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=2)
+    with atomic_write(metrics_path) as tmp:
+        with open(tmp, 'w') as f:
+            json.dump(metrics, f, indent=2)
     logger.info(f'[7/7] Metrics saved → metrics.json')
 
     logger.info(f'[7/7] Done  ({time.time() - t0:.1f}s)')

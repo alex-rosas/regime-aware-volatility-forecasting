@@ -13,8 +13,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+import logging
 from src.logger import setup_logging
 from src.pipeline import step_load_data
 
 setup_logging()
-step_load_data()
+logger = logging.getLogger(__name__)
+
+try:
+    step_load_data()
+except Exception as e:
+    logger.error(f'Stage load_data failed: {e}', exc_info=True)
+    raise SystemExit(1)
