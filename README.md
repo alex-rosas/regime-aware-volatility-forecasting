@@ -10,13 +10,13 @@
 
 ## Why this project exists
 
-Volatility is the central object in financial risk management — it enters derivative pricing, credit spread estimation, capital requirements, and tail risk quantification. Constant-volatility pricing frameworks such as Black-Scholes-Merton rely on assumptions about return distributions that are testable in time-series data. For the Mexican peso (MXN/USD), every one of these assumptions fails measurably.
+Volatility is the central object in financial risk management — it enters derivative pricing, credit spread estimation, capital requirements, and tail risk quantification. Constant-volatility pricing frameworks such as Black-Scholes-Merton rely on assumptions about return dynamics that are testable in time-series data. For the Mexican peso (MXN/USD), every one of these assumptions fails measurably.
 
 This project was built to answer a precise question:
 
 > *By how much do MXN/USD returns deviate from constant-volatility assumptions, and what forecasting gain is obtained by modelling those deviations explicitly?*
 
-Volatility is proxied by the next-day absolute return $|r_{t+1}|$, a widely used observable proxy at daily frequency when realised intraday measures are unavailable.
+Volatility is proxied by the next-day absolute return $|r_{t+1}|$, a widely used observable proxy at daily frequency when realised volatility measures are unavailable.
 
 The answer is given in four steps — each a formal statistical result on this specific sample, not an assumption inherited from the literature:
 
@@ -45,7 +45,7 @@ Inverting this relation with the empirical excess kurtosis $K = 10.30$:
 
 $$\hat{\nu}_{\text{moments}} = \frac{6}{K} + 4 = \frac{6}{10.30} + 4 \approx 4.6$$
 
-This moment-matching estimate provides a principled starting point before maximum likelihood. Using normal innovations would materially understate tail probabilities on this series — a consequential misspecification for risk management applications.
+This moment-matching estimate provides a principled starting point before maximum likelihood. Using normal innovations would materially understate tail probabilities on this series — a consequential misspecification for risk management applications at conventional confidence levels.
 
 ### Why EGARCH in addition to GARCH?
 
@@ -53,7 +53,7 @@ The EGARCH model captures the leverage effect through the log-variance equation:
 
 $$\log(\sigma_t^2) = \omega + \beta\log(\sigma_{t-1}^2) + \alpha(|z_{t-1}| - \mathbb{E}[|z_{t-1}|]) + \gamma z_{t-1}$$
 
-For equity markets, $\gamma < 0$ (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields $\hat{\gamma} > 0$ — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This contrasts with the standard equity leverage effect and represents an empirical feature of this sample for MXN/USD.
+For equity markets, $\gamma < 0$ (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields $\hat{\gamma} > 0$ — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This contrasts with the standard equity leverage effect and represents an empirical feature of this sample period for MXN/USD.
 
 ### Why a 3-state HMM?
 
@@ -61,7 +61,7 @@ GARCH captures persistence but treats volatility as a single continuous process.
 
 $$\hat{\mathbf{Z}} = \arg\max_{\mathbf{Z}} P(\mathbf{Z} \mid \mathbf{r};\, \theta)$$
 
-$K = 3$ **is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states over-segment given the sample size. BIC formally justifies $K = 3$.
+$K = 3$ **is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states introduce parameter instability given the available sample size. BIC formally justifies $K = 3$.
 
 The fitted HMM aligns closely with known crisis periods — the 2008 Lehman collapse, 2016 Trump election shock, and 2020 COVID crash emerge as the high-volatility regime (< 3% of trading days) without supervision and without seeing dates. The GARCH conditional volatility spikes show qualitative agreement with the HMM regime boundaries, providing independent confirmation from two separately estimated models.
 
@@ -71,11 +71,11 @@ The natural joint model is RS-GARCH, where GARCH parameters switch with the late
 
 ### The hybrid model
 
-$$\hat{\sigma}_{t+1}^{\text{hybrid}} = f_{\text{XGB}}\!\left(\hat{\sigma}_t^{\text{GARCH}},\; \hat{\sigma}_t^{\text{EGARCH}},\; z_t^{\text{HMM}},\; r_{t-1}, r_{t-2}, r_{t-3},\; \text{VIX}_t,\; \text{T10Y2Y}_t\right)$$
+$$\hat{\sigma}_{t+1}^{\text{hybrid}} = f_{\text{XGB}}\!\left(\hat{\sigma}_{t+1|t}^{\text{GARCH}},\; \hat{\sigma}_{t+1|t}^{\text{EGARCH}},\; \hat{z}_{t}^{\text{HMM}},\; r_{t}, r_{t-1}, r_{t-2},\; \text{VIX}_t,\; \text{T10Y2Y}_t\right)$$
 
-The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable inputs rather than being absorbed into a black box.
+The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable forecasting signals rather than being subsumed within an opaque representation.
 
-**SHAP values confirm the regime label is the dominant driver** (mean $|\text{SHAP}| = 0.00117$, $5\times$ larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
+**SHAP values indicate that the regime label is the dominant driver** (mean $|\text{SHAP}| = 0.00117$, $5\times$ larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
 
 ![shap](assets/figures/dark/07_shap.png)
 
@@ -113,7 +113,7 @@ The correct null hypothesis for the Kupiec POF test is therefore not $\alpha$ bu
 | 90% | 90.0% | 91.90% | Not rejected |
 | 95% | 95.0% | 96.05% | Not rejected |
 
-The Diebold-Mariano test rejects equal predictive accuracy under RMSE loss against both benchmarks. The walk-forward evaluation suggests the gain is not specific to a single test window.
+The Diebold-Mariano test rejects equal predictive accuracy under squared-error loss against both benchmarks. The walk-forward evaluation suggests the gain is not specific to a single test window.
 
 ![forecast](assets/figures/dark/02_forecast.png)
 
@@ -125,7 +125,7 @@ The Diebold-Mariano test rejects equal predictive accuracy under RMSE loss again
 
 ![pipeline](assets/figures/readme/pipeline_diagram.png)
 
-A fully reproducible 9-stage DVC pipeline. Updating `params.yaml` propagates changes automatically through all downstream stages via `dvc repro`.
+A fully reproducible 9-stage DVC pipeline. Updating `params.yaml` propagates parameter changes automatically through all downstream stages via `dvc repro`.
 
 ---
 
