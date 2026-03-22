@@ -16,13 +16,13 @@ This project was built to answer a precise question:
 
 > *By how much do MXN/USD returns deviate from constant-volatility assumptions, and what forecasting gain is obtained by modelling those deviations explicitly?*
 
-Volatility is proxied by the next-day absolute return |r_{t+1}|, a widely used observable proxy at daily frequency when realised intraday measures are unavailable.
+Volatility is proxied by the next-day absolute return $|r_{t+1}|$, a widely used observable proxy at daily frequency when realised intraday measures are unavailable.
 
 The answer is given in four steps — each a formal statistical result on this specific sample, not an assumption inherited from the literature:
 
-1. **Test normality** — Jarque-Bera statistic: 29,801.1 (p ≈ 0). Empirical excess kurtosis: **10.30**, more than ten times that of a normal distribution. Normality is overwhelmingly rejected on this sample.
-2. **Test volatility clustering** — ARCH-LM statistic: 1,463.3 (p < 2.1 × 10⁻³⁰⁸). The null of no ARCH effects is rejected. Volatility persistence is therefore empirically established for this series rather than imposed as a modelling prior.
-3. **Fit and compare models** — GARCH(1,1)-t and EGARCH(1,1)-t. Model selection by BIC. The Student-t innovation distribution is chosen not merely because fat tails are a stylised fact — the moment-matching estimate ν̂ ≈ 4.6 is derived directly from the empirical kurtosis prior to likelihood-based estimation.
+1. **Test normality** — Jarque-Bera statistic: $29{,}801.1$ ($p \approx 0$). Empirical excess kurtosis: $10.30$, more than ten times that of a normal distribution. Normality is overwhelmingly rejected on this sample.
+2. **Test volatility clustering** — ARCH-LM statistic: $1{,}463.3$ ($p < 2.1 \times 10^{-308}$). The null of no ARCH effects is rejected. Volatility persistence is therefore empirically established for this series rather than imposed as a modelling prior.
+3. **Fit and compare models** — GARCH(1,1)-t and EGARCH(1,1)-t. Model selection by BIC. The Student-t innovation distribution is chosen not merely because fat tails are a stylised fact — the moment-matching estimate $\hat{\nu} \approx 4.6$ is derived directly from the empirical kurtosis prior to likelihood-based estimation.
 4. **Build the hybrid forecast** — XGBoost trained on econometric outputs and macro features. The Diebold-Mariano test evaluates whether the improvement is statistically significant under RMSE loss. SHAP values explain which features drive it.
 
 **The defining methodological discipline:** stylised facts provide prior motivation, but model inclusion is data-validated on this specific sample. Formal test rejection provides the primary justification for each modelling layer within a candidate set constrained by prior literature. The architecture is conditional on this asset, frequency, and sample period — and is falsifiable.
@@ -41,7 +41,7 @@ The choice of Student-t innovations $z_t \sim t_\nu(0,1)$ is not arbitrary. The 
 
 $$\text{Excess Kurtosis} = \frac{6}{\nu - 4}, \quad \nu > 4$$
 
-Inverting this relation with the empirical excess kurtosis K = 10.30:
+Inverting this relation with the empirical excess kurtosis $K = 10.30$:
 
 $$\hat{\nu}_{\text{moments}} = \frac{6}{K} + 4 = \frac{6}{10.30} + 4 \approx 4.6$$
 
@@ -53,7 +53,7 @@ The EGARCH model captures the leverage effect through the log-variance equation:
 
 $$\log(\sigma_t^2) = \omega + \beta\log(\sigma_{t-1}^2) + \alpha(|z_{t-1}| - \mathbb{E}[|z_{t-1}|]) + \gamma z_{t-1}$$
 
-For equity markets, γ < 0 (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields **γ̂ > 0** — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This contrasts with the standard equity leverage effect and represents an empirical feature of this sample for MXN/USD.
+For equity markets, $\gamma < 0$ (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields $\hat{\gamma} > 0$ — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This contrasts with the standard equity leverage effect and represents an empirical feature of this sample for MXN/USD.
 
 ### Why a 3-state HMM?
 
@@ -61,7 +61,7 @@ GARCH captures persistence but treats volatility as a single continuous process.
 
 $$\hat{\mathbf{Z}} = \arg\max_{\mathbf{Z}} P(\mathbf{Z} \mid \mathbf{r};\, \theta)$$
 
-**K = 3 is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states over-segment given the sample size. BIC formally justifies K = 3.
+$K = 3$ **is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states over-segment given the sample size. BIC formally justifies $K = 3$.
 
 The fitted HMM aligns closely with known crisis periods — the 2008 Lehman collapse, 2016 Trump election shock, and 2020 COVID crash emerge as the high-volatility regime (< 3% of trading days) without supervision and without seeing dates. The GARCH conditional volatility spikes show qualitative agreement with the HMM regime boundaries, providing independent confirmation from two separately estimated models.
 
@@ -75,7 +75,7 @@ $$\hat{\sigma}_{t+1}^{\text{hybrid}} = f_{\text{XGB}}\!\left(\hat{\sigma}_t^{\te
 
 The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable inputs rather than being absorbed into a black box.
 
-**SHAP values confirm the regime label is the dominant driver** (mean |SHAP| = 0.00117, 5× larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
+**SHAP values confirm the regime label is the dominant driver** (mean $|\text{SHAP}| = 0.00117$, $5\times$ larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
 
 ![shap](assets/figures/dark/07_shap.png)
 
@@ -83,14 +83,14 @@ The hybrid model is not intended to replace econometric structure but to combine
 
 Split conformal prediction provides distribution-free coverage guarantees. The standard symmetric predictor constructs equal-width bounds from absolute residuals. For volatility forecasting, underestimating upward spikes is more consequential than underestimating downward moves.
 
-The **asymmetric conformal predictor** with φ = 0.7 splits the error budget α using signed residuals:
+The **asymmetric conformal predictor** with $\phi = 0.7$ splits the error budget $\alpha$ using signed residuals:
 
 | Tail | Budget | Interpretation |
 |------|--------|----------------|
-| Lower | (1−φ)α = 0.3α | Wider tolerance for lower violations |
-| Upper | φα = 0.7α | Upper bound absorbs 70% of budget — more conservative |
+| Lower | $(1-\phi)\alpha = 0.3\alpha$ | Wider tolerance for lower violations |
+| Upper | $\phi\alpha = 0.7\alpha$ | Upper bound absorbs 70% of budget — more conservative |
 
-The correct null hypothesis for the Kupiec POF test is therefore not α but **α_upper = φ·α**: 14% for the 80% interval, 7% for the 90%, 3.5% for the 95%.
+The correct null hypothesis for the Kupiec POF test is therefore not $\alpha$ but $\alpha_\text{upper} = \phi \cdot \alpha$: 14% for the 80% interval, 7% for the 90%, 3.5% for the 95%.
 
 ---
 
@@ -105,7 +105,7 @@ The correct null hypothesis for the Kupiec POF test is therefore not α but **α
 | WF improvement | **+11.28% vs GARCH** | — | — |
 | DM statistic vs GARCH | **−6.67** (RMSE loss) | — | — |
 
-**Conformal coverage (asymmetric, φ = 0.7):**
+**Conformal coverage (asymmetric, $\phi = 0.7$):**
 
 | Interval | Target | Empirical | Kupiec H₀ |
 |----------|--------|-----------|-----------|
