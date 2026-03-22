@@ -39,7 +39,7 @@ $$r_t = \mu + \epsilon_t, \quad \epsilon_t = \sigma_t z_t, \quad \sigma_t^2 = \o
 
 The choice of Student-t innovations $z_t \sim t_\nu(0,1)$ is not arbitrary. The theoretical excess kurtosis of the Student-t is:
 
-$$\mathrm{Excess\ Kurtosis} = \frac{6}{\nu - 4}, \quad \nu > 4$$
+$$\text{Excess Kurtosis} = \frac{6}{\nu - 4}, \quad \nu > 4$$
 
 Inverting this relation with the empirical excess kurtosis $K = 10.30$:
 
@@ -59,7 +59,7 @@ For equity markets, $\gamma < 0$ (crashes amplify volatility more than rallies).
 
 GARCH captures persistence but treats volatility as a single continuous process. The Hidden Markov Model estimates discrete latent regimes via the Baum-Welch algorithm:
 
-$$\hat{\mathbf{Z}} = \arg\max_{\mathbf{Z}} P(\mathbf{Z} \mid \mathbf{r};\, \theta)$$
+$$\hat{\mathbf{Z}} = \arg\max_{\mathbf{Z}} P(\mathbf{Z} \mid \mathbf{r}; \theta)$$
 
 $K = 3$ **is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states introduce parameter instability given the available sample size. BIC formally justifies $K = 3$.
 
@@ -71,7 +71,9 @@ The natural joint model is RS-GARCH, where GARCH parameters switch with the late
 
 ### The hybrid model
 
-$$\hat{\sigma}_{t+1|t}^{\mathrm{hyb}} = f_{\mathrm{XGB}}\!\left(\hat{\sigma}_{t+1|t}^{\mathrm{GARCH}},\; \hat{\sigma}_{t+1|t}^{\mathrm{EGARCH}},\; \hat{s}_{t},\; r_{t}, r_{t-1}, r_{t-2},\; \mathrm{VIX}_t,\; \mathrm{T10Y2Y}_t\right)$$
+$$\hat{\sigma}_{t+1|t}^{\mathrm{hyb}} = f_{\mathrm{XGB}}(\mathcal{F}_t)$$
+
+where $\mathcal{F}_t = \bigl(\hat{\sigma}_{t+1|t}^{\mathrm{GARCH}}, \hat{\sigma}_{t+1|t}^{\mathrm{EGARCH}}, \hat{s}_t, r_t, r_{t-1}, r_{t-2}, \mathrm{VIX}_t, \mathrm{T10Y2Y}_t\bigr)$ is the information set available at forecast origin $t$.
 
 The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable forecasting signals rather than being subsumed within an opaque representation.
 
