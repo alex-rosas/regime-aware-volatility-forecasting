@@ -73,7 +73,9 @@ The natural joint model is RS-GARCH, where GARCH parameters switch with the late
 
 $$\hat{\sigma}_{t+1|t}^{\mathrm{hyb}} = f_{\mathrm{XGB}}(\mathcal{F}_t)$$
 
-where $\mathcal{F}_t = \bigl(\hat{\sigma}_{t+1|t}^{\mathrm{GARCH}}, \hat{\sigma}_{t+1|t}^{\mathrm{EGARCH}}, \hat{s}_t, r_t, r_{t-1}, r_{t-2}, \mathrm{VIX}_t, \mathrm{T10Y2Y}_t\bigr)$ is the information set available at forecast origin $t$.
+$$\mathcal{F}_t = \bigl(\hat{\sigma}_{t+1|t}^{\mathrm{GARCH}},\ \hat{\sigma}_{t+1|t}^{\mathrm{EGARCH}},\ \hat{s}_t,\ r_t,\ r_{t-1},\ r_{t-2},\ \mathrm{VIX}_t,\ \mathrm{T10Y2Y}_t\bigr)$$
+
+where $\mathcal{F}_t$ is the information set available at forecast origin $t$.
 
 The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable forecasting signals rather than being subsumed within an opaque representation.
 
