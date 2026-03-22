@@ -12,15 +12,15 @@ Volatility is the central object in financial risk management — it enters deri
 
 This project was built to answer a precise question:
 
-> *By how much do MXN/USD returns deviate from constant-volatility assumptions, and what is the forecasting gain from modelling those deviations explicitly?*
+> *By how much do MXN/USD returns deviate from constant-volatility assumptions, and what forecasting gain is obtained by modelling those deviations explicitly?*
 
-Volatility is proxied by the next-day absolute return |r_{t+1}|, a standard observable measure in daily-frequency studies.
+Volatility is proxied by the next-day absolute return |r_{t+1}|, a widely used observable proxy at daily frequency when realised intraday measures are unavailable.
 
 The answer is given in four steps — each a formal statistical result on this specific sample, not an assumption inherited from the literature:
 
 1. **Test normality** — Jarque-Bera statistic: 29,801.1 (p ≈ 0). Empirical excess kurtosis: **10.30**, more than ten times that of a normal distribution. Normality is overwhelmingly rejected on this sample.
-2. **Test volatility clustering** — ARCH-LM statistic: 1,463.3 (p < 2.1 × 10⁻³⁰⁸). The null of no ARCH effects is rejected. Volatility persistence is a measured property of this series, not a stylised fact to be assumed.
-3. **Fit and compare models** — GARCH(1,1)-t and EGARCH(1,1)-t. Model selection by BIC. The Student-t innovation distribution is chosen not merely because fat tails are a stylised fact — the moment-matching estimate ν̂ ≈ 4.6 is derived directly from the empirical kurtosis before any model is fitted.
+2. **Test volatility clustering** — ARCH-LM statistic: 1,463.3 (p < 2.1 × 10⁻³⁰⁸). The null of no ARCH effects is rejected. Volatility persistence is therefore empirically established for this series rather than imposed as a modelling prior.
+3. **Fit and compare models** — GARCH(1,1)-t and EGARCH(1,1)-t. Model selection by BIC. The Student-t innovation distribution is chosen not merely because fat tails are a stylised fact — the moment-matching estimate ν̂ ≈ 4.6 is derived directly from the empirical kurtosis prior to likelihood-based estimation.
 4. **Build the hybrid forecast** — XGBoost trained on econometric outputs and macro features. The Diebold-Mariano test evaluates whether the improvement is statistically significant under RMSE loss. SHAP values explain which features drive it.
 
 **The defining methodological discipline:** stylised facts provide prior motivation, but model inclusion is data-validated on this specific sample. Formal test rejection provides the primary justification for each modelling layer within a candidate set constrained by prior literature. The architecture is conditional on this asset, frequency, and sample period — and is falsifiable.
@@ -51,7 +51,7 @@ The EGARCH model captures the leverage effect through the log-variance equation:
 
 $$\log(\sigma_t^2) = \omega + \beta\log(\sigma_{t-1}^2) + \alpha(|z_{t-1}| - \mathbb{E}[|z_{t-1}|]) + \gamma z_{t-1}$$
 
-For equity markets, γ < 0 (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields **γ̂ > 0** — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This is the opposite of the standard equity leverage effect and is a genuine empirical finding specific to this currency pair.
+For equity markets, γ < 0 (crashes amplify volatility more than rallies). For MXN/USD, the sign is an empirical question. The fitted model yields **γ̂ > 0** — peso appreciations generate marginally larger volatility increases than depreciations of equal magnitude. This contrasts with the standard equity leverage effect and represents an empirical feature of this sample for MXN/USD.
 
 ### Why a 3-state HMM?
 
@@ -59,7 +59,7 @@ GARCH captures persistence but treats volatility as a single continuous process.
 
 $$\hat{\mathbf{Z}} = \arg\max_{\mathbf{Z}} P(\mathbf{Z} \mid \mathbf{r};\, \theta)$$
 
-**K = 3 is not arbitrary.** Two states confound elevated-but-normal volatility (2008 pre-crisis, 2022 rate-hike period) with genuine crisis volatility. Four states over-segment given the sample size. BIC formally justifies K = 3.
+**K = 3 is not arbitrary.** With two states, elevated-but-non-crisis volatility tends to be pooled with crisis episodes (2008 pre-crisis, 2022 rate-hike period). Four states over-segment given the sample size. BIC formally justifies K = 3.
 
 The fitted HMM aligns closely with known crisis periods — the 2008 Lehman collapse, 2016 Trump election shock, and 2020 COVID crash emerge as the high-volatility regime (< 3% of trading days) without supervision and without seeing dates. The GARCH conditional volatility spikes show qualitative agreement with the HMM regime boundaries, providing independent confirmation from two separately estimated models.
 
@@ -73,7 +73,7 @@ $$\hat{\sigma}_{t+1}^{\text{hybrid}} = f_{\text{XGB}}\!\left(\hat{\sigma}_t^{\te
 
 The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable inputs rather than being absorbed into a black box.
 
-**SHAP values confirm the regime label is the dominant driver** (mean |SHAP| = 0.00117, 5× larger than the next feature), validating the core hypothesis: regime-awareness is the primary source of the hybrid model's forecasting edge.
+**SHAP values confirm the regime label is the dominant driver** (mean |SHAP| = 0.00117, 5× larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
 
 ![shap](assets/figures/dark/07_shap.png)
 
@@ -111,7 +111,7 @@ The correct null hypothesis for the Kupiec POF test is therefore not α but **α
 | 90% | 90.0% | 91.90% | Not rejected |
 | 95% | 95.0% | 96.05% | Not rejected |
 
-The Diebold-Mariano test rejects equal predictive accuracy under RMSE loss against both benchmarks. The walk-forward result confirms the gain is not specific to a single test window.
+The Diebold-Mariano test rejects equal predictive accuracy under RMSE loss against both benchmarks. The walk-forward evaluation suggests the gain is not specific to a single test window.
 
 ![forecast](assets/figures/dark/02_forecast.png)
 
@@ -123,7 +123,7 @@ The Diebold-Mariano test rejects equal predictive accuracy under RMSE loss again
 
 ![pipeline](assets/figures/readme/pipeline_diagram.png)
 
-A fully reproducible 9-stage DVC pipeline. Changing `params.yaml` propagates automatically through all downstream stages via `dvc repro`.
+A fully reproducible 9-stage DVC pipeline. Updating `params.yaml` propagates changes automatically through all downstream stages via `dvc repro`.
 
 ---
 
@@ -188,7 +188,7 @@ This repository is the baseline. Open research questions addressed in a forthcom
 - Baillie, R. T., & Bollerslev, T. (1989). The message in daily exchange rates: A conditional-variance tale. *Journal of Business & Economic Statistics*, 7(3), 297–305.
 - Tsay, R. S. (2010). *Analysis of Financial Time Series* (3rd ed.). Wiley.
 
-**Stylised facts**
+**Stylised facts of financial returns**
 
 - Cont, R. (2001). Empirical properties of asset returns: stylized facts and statistical issues. *Quantitative Finance*, 1(2), 223–236.
 
