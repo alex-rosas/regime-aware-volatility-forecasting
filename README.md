@@ -2,6 +2,8 @@
 
 **Luis Alejandro Rosas Martínez · PhD Applied Mathematics · Institut Polytechnique de Paris (IPP) · 2025**
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://regime-aware-volatility-forecasting-mxn-usd.streamlit.app/)
+
 ![hero](assets/figures/readme/hero.png)
 
 ---
