@@ -39,11 +39,11 @@ $$r_t = \mu + \epsilon_t, \quad \epsilon_t = \sigma_t z_t, \quad \sigma_t^2 = \o
 
 The choice of Student-t innovations $z_t \sim t_\nu(0,1)$ is not arbitrary. The theoretical excess kurtosis of the Student-t is:
 
-$$\text{Excess Kurtosis} = \frac{6}{\nu - 4}, \quad \nu > 4$$
+$$\mathrm{Excess\ Kurtosis} = \frac{6}{\nu - 4}, \quad \nu > 4$$
 
 Inverting this relation with the empirical excess kurtosis $K = 10.30$:
 
-$$\hat{\nu}_{\text{moments}} = \frac{6}{K} + 4 = \frac{6}{10.30} + 4 \approx 4.6$$
+$$\hat{\nu}_{\mathrm{moments}} = \frac{6}{K} + 4 = \frac{6}{10.30} + 4 \approx 4.6$$
 
 This moment-matching estimate provides a principled starting point before maximum likelihood. Using normal innovations would materially understate tail probabilities on this series — a consequential misspecification for risk management applications at conventional confidence levels.
 
@@ -71,11 +71,11 @@ The natural joint model is RS-GARCH, where GARCH parameters switch with the late
 
 ### The hybrid model
 
-$$\hat{\sigma}_{t+1}^{\text{hybrid}} = f_{\text{XGB}}\!\left(\hat{\sigma}_{t+1|t}^{\text{GARCH}},\; \hat{\sigma}_{t+1|t}^{\text{EGARCH}},\; \hat{z}_{t}^{\text{HMM}},\; r_{t}, r_{t-1}, r_{t-2},\; \text{VIX}_t,\; \text{T10Y2Y}_t\right)$$
+$$\hat{\sigma}_{t+1|t}^{\mathrm{hyb}} = f_{\mathrm{XGB}}\!\left(\hat{\sigma}_{t+1|t}^{\mathrm{GARCH}},\; \hat{\sigma}_{t+1|t}^{\mathrm{EGARCH}},\; \hat{s}_{t},\; r_{t}, r_{t-1}, r_{t-2},\; \mathrm{VIX}_t,\; \mathrm{T10Y2Y}_t\right)$$
 
 The hybrid model is not intended to replace econometric structure but to combine heterogeneous volatility signals within a flexible nonlinear forecasting layer. The econometric outputs remain interpretable forecasting signals rather than being subsumed within an opaque representation.
 
-**SHAP values indicate that the regime label is the dominant driver** (mean $|\text{SHAP}| = 0.00117$, $5\times$ larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
+**SHAP values indicate that the regime label is the dominant driver** (mean $|\mathrm{SHAP}| = 0.00117$, $5\times$ larger than the next feature), supporting the hypothesis that regime information contributes materially to the hybrid model's forecasting performance.
 
 ![shap](assets/figures/dark/07_shap.png)
 
@@ -90,7 +90,7 @@ The **asymmetric conformal predictor** with $\phi = 0.7$ splits the error budget
 | Lower | $(1-\phi)\alpha = 0.3\alpha$ | Wider tolerance for lower violations |
 | Upper | $\phi\alpha = 0.7\alpha$ | Upper bound absorbs 70% of budget — more conservative |
 
-The correct null hypothesis for the Kupiec POF test is therefore not $\alpha$ but $\alpha_\text{upper} = \phi \cdot \alpha$: 14% for the 80% interval, 7% for the 90%, 3.5% for the 95%.
+The correct null hypothesis for the Kupiec POF test is therefore not $\alpha$ but $\alpha_{\mathrm{upper}} = \phi \cdot \alpha$: 14% for the 80% interval, 7% for the 90%, 3.5% for the 95%.
 
 ---
 
