@@ -44,7 +44,7 @@ def _fmt(v, pct: bool = False, decimals: int = 4) -> str:
     if v is None:
         return "—"
     if pct:
-        return f"{v:.2f}%"
+        return f"{v * 100:.2f}%"   # v is a ratio 0-1, multiply before display
     return f"{v:.{decimals}f}"
 
 
@@ -82,8 +82,8 @@ else:
     c4.metric(
         "DM p-value vs GARCH",
         _fmt(m.get("dm_pval_vs_garch"), decimals=4),
-        delta="statistically significant" if (m.get("dm_pval_vs_garch") or 1) < 0.05 else "not significant",
-        delta_color="normal" if (m.get("dm_pval_vs_garch") or 1) < 0.05 else "off",
+        delta="statistically significant" if m.get("dm_pval_vs_garch") is not None and m["dm_pval_vs_garch"] < 0.05 else "not significant",
+        delta_color="normal" if m.get("dm_pval_vs_garch") is not None and m["dm_pval_vs_garch"] < 0.05 else "off",
     )
 
     st.divider()
